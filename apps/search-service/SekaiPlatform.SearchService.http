@@ -1,0 +1,5 @@
+@SekaiPlatform.SearchService_HostAddress = http://localhost:8083
+
+GET {{SekaiPlatform.SearchService_HostAddress}}/health
+
+###

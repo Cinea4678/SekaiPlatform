@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.git/
+.gitignore
+.dockerignore
+.env
+.vs/
+.vscode/
+README.md
+design-docs/
+plans/

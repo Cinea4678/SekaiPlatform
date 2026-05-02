@@ -1,0 +1,5 @@
+@SekaiPlatform.AuthService_HostAddress = http://localhost:8081
+
+GET {{SekaiPlatform.AuthService_HostAddress}}/health
+
+###

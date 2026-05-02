@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Local configuration
+.env
+*.local.json
+
+# Docker and OS noise
+.DS_Store
+docker-compose.override.yml

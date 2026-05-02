@@ -1,0 +1,5 @@
+@SekaiPlatform.ApiService_HostAddress = http://localhost:8080
+
+GET {{SekaiPlatform.ApiService_HostAddress}}/health
+
+###
