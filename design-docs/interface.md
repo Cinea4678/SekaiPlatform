@@ -1,0 +1,271 @@
+# PJS 字幕组语言资产平台 接口草案
+
+## 文档定位
+
+本文档用于确认 API 草案。正式 API 文档维护在 Apifox。
+
+- Apifox 项目编号：`8210187`
+- OpenAPI 源文件：`../openapi.yaml`
+
+## 一期 API 总览
+
+API Base URL：
+
+```text
+http://localhost:8080
+```
+
+一期采用 REST 风格，统一使用 `/api` 前缀。正常响应直接返回 JSON 结果，不额外包裹；错误响应统一返回 `{ "msg": "...", "trace_id": "..." }`。
+
+| 模块 | 方法 | 路径 | 说明 |
+|---|---|---|---|
+| Auth | POST | `/api/auth/login` | 用户名密码登录 |
+| Auth | POST | `/api/auth/logout` | 登出 |
+| Auth | GET | `/api/auth/session` | 获取当前登录状态 |
+| Auth | GET | `/api/auth/tenants` | 加载当前用户可访问租户 |
+| Auth | PUT | `/api/auth/current-tenant` | 选择或切换当前租户 |
+| Users | POST | `/api/users/invitations` | 邀请用户加入当前租户 |
+| Assets | GET | `/api/story-types` | 查询支持的剧情类型 |
+| Assets | GET | `/api/story-groups` | 查询剧情集列表 |
+| Assets | GET | `/api/story-groups/{storyGroupId}` | 查询剧情集详情 |
+| Assets | GET | `/api/stories` | 查询剧情列表 |
+| Assets | GET | `/api/stories/{storyId}` | 查询剧情详情 |
+| Assets | GET | `/api/stories/{storyId}/source-lines` | 查询剧情原文行 |
+| Assets | GET | `/api/stories/{storyId}/translation-versions` | 查询当前租户翻译版本列表 |
+| Assets | GET | `/api/translation-versions/{translationVersionId}` | 查询翻译版本详情 |
+| Assets | GET | `/api/translation-versions/{translationVersionId}/lines` | 查询翻译行 |
+| Search | GET | `/api/search` | 搜索原文和当前租户译文 |
+| Sync | POST | `/api/sync/jobs` | 手动触发外部数据源同步 |
+| Sync | GET | `/api/sync/jobs` | 查询同步任务列表 |
+| Sync | GET | `/api/sync/jobs/{syncJobId}` | 查询同步任务详情 |
+| Import | POST | `/api/import/translation-versions` | 批量导入历史译文 |
+| Import | GET | `/api/import/jobs/{importJobId}` | 查询导入任务详情 |
+
+## 核心对象
+
+接口对象命名与数据模型保持一致，字段使用 snake_case。
+
+| 对象 | 来源/说明 |
+|---|---|
+| `Tenant` | 对应 `tenants` |
+| `UserProfile` | 对应 `users` 的对外可见字段 |
+| `TenantMembership` | 对应 `user_tenants` |
+| `StoryGroup` | 对应 `story_groups` |
+| `Story` | 对应 `stories` |
+| `StorySourceLine` | 对应 `story_source_lines` |
+| `TranslationVersion` | 对应 `translation_versions`，按当前租户隔离 |
+| `TranslationLine` | 对应 `translation_lines`，按当前租户隔离 |
+| `SearchHit` | 搜索服务返回的行级命中结果 |
+| `SyncJob` | 外部数据源同步任务 |
+| `ImportJob` | 历史译文导入任务 |
+
+## 全局约定
+
+### 鉴权
+
+API 支持两种 Token 传递方式：
+
+- Cookie：`SEKAI_PLATFORM_AUTH`
+- Header：`Authorization: Bearer <token>`
+
+Token 格式使用 JWT。
+
+### 租户上下文
+
+- 业务接口使用登录状态中的当前租户。
+- 客户端传入的租户 ID 不作为权限依据。
+- 当前租户为空时，业务接口返回 401 或 403。
+- 译文、翻译版本、导入结果只在当前租户内可见。
+
+### 正常响应
+
+正常响应直接返回 JSON 结果，不包裹。
+
+### 错误响应
+
+错误响应格式：
+
+```json
+{
+  "msg": "错误信息",
+  "trace_id": "请求追踪 ID"
+}
+```
+
+HTTP 状态码按业务语义返回 4xx 或 5xx。
+
+### 参数校验
+
+参数校验按每个接口的实际情况确定。
+
+## 用户管理
+
+### 用户登录状态
+
+- 用户 ID
+- 当前租户 ID，可空
+
+仅当当前租户 ID 不为空时，用户可以访问业务接口。
+
+### 用户登录接口
+
+用户使用用户名和密码登录。
+
+输入：
+
+- 用户名
+- 密码
+
+处理规则：
+
+- 用户没有可访问租户时，拒绝登录。
+- 用户只有一个可访问租户时，登录后直接设置该租户。
+- 用户有多个可访问租户时，当前租户为空，客户端进入租户选择阶段。
+
+### 加载可用租户
+
+加载当前用户有权限访问的租户列表。
+
+租户权限条件：
+
+- `user_tenants.status == active`
+
+### 用户选择租户 / 切换租户
+
+设置当前登录状态中的当前租户。
+
+### 用户登出接口
+
+清除当前登录状态。
+
+### 获取用户登录状态
+
+返回当前用户 ID 和当前租户 ID。
+
+### 邀请用户接口
+
+租户管理员邀请已有用户或新用户。
+
+输入：
+
+- QQ 号
+- 角色
+
+处理规则：
+
+- 用户已存在时，添加用户租户关系。
+- 用户不存在时，创建默认用户和默认密码，再添加用户租户关系。
+
+## 语言资产
+
+### 查询剧情类型
+
+返回平台支持的剧情类型。
+
+### 查询剧情集列表
+
+输入：
+
+- 剧情类型
+- 关键词
+- 分页参数
+
+### 查询剧情集详情
+
+输入：
+
+- 剧情集 ID
+
+### 查询剧情列表
+
+输入：
+
+- 剧情集 ID
+- 剧情类型
+- 关键词
+- 分页参数
+
+### 查询剧情详情
+
+输入：
+
+- 剧情 ID
+
+### 查询剧情原文行
+
+输入：
+
+- 剧情 ID
+
+### 查询翻译版本列表
+
+输入：
+
+- 剧情 ID
+- 分页参数
+
+约束：
+
+- 只返回当前租户内的翻译版本。
+
+### 查询翻译版本详情
+
+输入：
+
+- 翻译版本 ID
+
+约束：
+
+- 翻译版本必须属于当前租户。
+
+### 查询翻译行
+
+输入：
+
+- 翻译版本 ID
+
+约束：
+
+- 翻译版本必须属于当前租户。
+
+## 搜索
+
+### 搜索原文和译文
+
+输入：
+
+- 关键词
+- 分页参数
+
+约束：
+
+- 原文为全平台共享数据。
+- 译文只搜索当前租户内的数据。
+- 搜索结果按行返回。
+
+## 同步
+
+### 手动同步接口
+
+管理员手动触发外部数据源同步。
+
+处理规则：
+
+- 启动一次同步任务。
+- 失败后不自动重试。
+
+## 历史译文导入
+
+### 批量导入历史译文接口
+
+以 JSON 形式批量上传历史译文。
+
+输入：
+
+- 批量导入目标结构体
+
+处理规则：
+
+- 写入当前租户的译文数据。
+- 导入后更新 PostgreSQL。
+- 导入后更新 Elasticsearch。
