@@ -84,7 +84,8 @@
 
 ### 任务
 
-- 建立 PostgreSQL migration。
+- 使用 EF Core 建立数据库模型。
+- 使用 EF Core migrations 管理 PostgreSQL schema。
 - 创建租户、用户、用户租户关系表。
 - 创建剧情集、剧情、原文行表。
 - 创建翻译版本、翻译行表。

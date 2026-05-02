@@ -142,6 +142,7 @@ Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索
 | 后端 | .NET / ASP.NET Core | 用于构建 Web API、后台任务和微服务。 |
 | 前端 | Vue | 用于构建检索、查看、导入和管理页面。 |
 | 数据库 | PostgreSQL | 作为主存储，保存租户、用户、剧情、原文、译文和任务状态。 |
+| ORM | EF Core | 用于 .NET 服务访问 PostgreSQL 和管理数据库迁移。 |
 | 搜索引擎 | Elasticsearch | 用于全文搜索、分词和租户隔离查询。 |
 | 部署 | Docker Compose | 一期以低成本、易部署、易备份为优先。 |
 | API 层 | ASP.NET Core Web API | 作为外部请求入口，负责鉴权、验签、参数校验和服务编排。 |

@@ -81,3 +81,4 @@ deploy/
 
 - API 文档维护在 Apifox 项目 `8210187`。
 - .NET 工程初始化和引用管理优先使用 `dotnet` CLI。
+- 数据库访问和迁移使用 EF Core。
