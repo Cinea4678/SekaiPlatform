@@ -58,6 +58,8 @@
 - `docker compose up` 能启动 PostgreSQL、Elasticsearch 和空服务容器。
 - .NET solution 能编译。
 
+完成记录：见 [Phase 0 完成记录](phase-0-status.md)。
+
 ## 阶段 1：共享约定
 
 ### 任务
