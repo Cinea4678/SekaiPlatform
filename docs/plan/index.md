@@ -49,8 +49,9 @@
 │   └── migrations
 ├── deploy
 │   └── elasticsearch
-├── design-docs
-└── plans
+└── docs
+    ├── design
+    └── plan
 ```
 
 ### 完成标准
@@ -96,7 +97,7 @@
 
 - 本地数据库可一键初始化。
 - seed 后存在默认租户、管理员用户和测试用户。
-- 数据模型覆盖 @data-model.md。
+- 数据模型覆盖 @../design/data-model.md。
 
 ## 阶段 3：鉴权和租户
 

@@ -71,11 +71,11 @@ deploy/
 
 ## 文档
 
-- [总体设计](design-docs/index.md)
-- [接口草案](design-docs/interface.md)
-- [数据模型](design-docs/data-model.md)
-- [外部数据源](design-docs/external-api.md)
-- [实施计划](plans/index.md)
+- [总体设计](docs/design/index.md)
+- [接口草案](docs/design/interface.md)
+- [数据模型](docs/design/data-model.md)
+- [外部数据源](docs/design/external-api.md)
+- [实施计划](docs/plan/index.md)
 
 ## 约定
 
