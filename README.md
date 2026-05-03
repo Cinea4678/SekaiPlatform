@@ -95,6 +95,22 @@ dotnet tool restore
 POSTGRES_PASSWORD=sekai_platform dotnet dotnet-ef database update --project database/SekaiPlatform.Database.csproj
 ```
 
+运行接口集成测试：
+
+```bash
+dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj
+```
+
+集成测试会向当前 PostgreSQL 环境 upsert 一组专用测试数据：
+
+| 类型 | 值 |
+|---|---|
+| 租户 | `集成测试租户` |
+| 超级管理员 QQ | `900000000001` |
+| 超级管理员密码 | `sekai-integration-test-password` |
+
+这组数据会保留在本地数据库中，供后续接口测试复用。它不属于应用启动 seed，只有运行集成测试时才会写入；重复运行会更新同一组记录，不会重复插入。
+
 项目结构：
 
 ```text
@@ -108,6 +124,8 @@ packages/
   shared/
 database/
   migrations/
+tests/
+  integration-tests/
 deploy/
   elasticsearch/
 ```

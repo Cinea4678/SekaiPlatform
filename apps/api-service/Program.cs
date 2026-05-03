@@ -80,3 +80,5 @@ internal sealed record InternalServiceHealthItem(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("body")] string? Body,
     [property: JsonPropertyName("error")] string? Error);
+
+public partial class Program;
