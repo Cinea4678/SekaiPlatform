@@ -2,12 +2,13 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 1 共享约定。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 2 数据库。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 本地依赖
 
 - .NET SDK 10
 - Docker Desktop 或兼容 Docker Compose v2 的运行环境
+- 本地 .NET 工具通过 `dotnet tool restore` 安装
 
 ## 本地启动
 
@@ -17,10 +18,31 @@ PJS 字幕组语言资产检索平台。
 cp .env.example .env
 ```
 
-启动基础设施和空服务容器：
+启动基础设施和服务容器：
 
 ```bash
 docker compose up --build
+```
+
+API Service 在 Docker Compose 的 Development 环境中默认会自动执行 EF Core migration 并写入 seed 数据。可在 `.env` 中关闭：
+
+```bash
+DATABASE_AUTO_MIGRATE=false
+DATABASE_SEED=false
+```
+
+默认 seed 数据：
+
+| 类型 | QQ 号 | 角色 |
+|---|---|---|
+| 管理员用户 | `10000` | `super_admin` |
+| 测试用户 | `10001` | `normal` |
+
+默认不写入可登录密码。如需为本地 seed 用户写入密码哈希，在 `.env` 中设置：
+
+```bash
+SEED_ADMIN_PASSWORD=your-local-admin-password
+SEED_TEST_PASSWORD=your-local-test-password
 ```
 
 默认端口：
@@ -64,6 +86,13 @@ curl -g 'http://[::1]:8080/health'
 
 ```bash
 dotnet build SekaiPlatform.sln
+```
+
+生成或更新数据库：
+
+```bash
+dotnet tool restore
+POSTGRES_PASSWORD=sekai_platform dotnet dotnet-ef database update --project database/SekaiPlatform.Database.csproj
 ```
 
 项目结构：

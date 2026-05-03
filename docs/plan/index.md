@@ -101,6 +101,8 @@
 - seed 后存在默认租户、管理员用户和测试用户。
 - 数据模型覆盖 @../design/data-model.md。
 
+完成记录：见 [Phase 2 完成记录](phase-2-status.md)。
+
 ## 阶段 3：鉴权和租户
 
 ### 任务

@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
+using SekaiPlatform.Database;
 using SekaiPlatform.Shared.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSekaiPlatformWebDefaults();
+builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.AddSekaiPlatformInternalHttpClient("auth-service", builder.Configuration, "AuthService");
 builder.Services.AddSekaiPlatformInternalHttpClient("asset-service", builder.Configuration, "AssetService");
 builder.Services.AddSekaiPlatformInternalHttpClient("search-service", builder.Configuration, "SearchService");
@@ -30,6 +32,8 @@ app.MapGet("/api/internal-services/health", async (
         response,
         statusCode: isHealthy ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
 });
+
+await DatabaseInitializer.InitializeAsync(app);
 
 app.Run();
 

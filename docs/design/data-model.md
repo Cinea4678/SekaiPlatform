@@ -10,6 +10,12 @@ Table: tenants
 | name | VARCHAR(64) | No | 租户名称 |
 | avatar_url | VARCHAR(512) | Yes | 头像地址 |
 
+约束：
+
+```sql
+UNIQUE(name)
+```
+
 ## 用户表
 
 Table: users
@@ -88,7 +94,7 @@ Table: story_groups
 约束：
 
 ```sql
-UNIQUE(story_type, external_type, external_id)
+UNIQUE NULLS NOT DISTINCT (story_type, external_type, external_id)
 ```
 
 ## 剧情表
@@ -156,6 +162,7 @@ Table: translation_versions
 
 ```sql
 UNIQUE(tenant_id, story_id, version_no)
+FOREIGN KEY(tenant_id, created_by) REFERENCES user_tenants(tenant_id, user_id)
 ```
 
 ## 翻译行表
@@ -167,6 +174,7 @@ Table: translation_lines
 | id | BIGINT | No | 主键 |
 | version_id | BIGINT | No | 翻译版本表的主键。 |
 | source_line_id | BIGINT | No | 剧情原文行表的主键。 |
+| story_id | BIGINT | No | 剧情表的主键，用于保证翻译版本和原文行属于同一剧情。 |
 | line_no | INT | No | 行号，从 1 开始 |
 | speaker | VARCHAR(128) | Yes | 说话人 |
 | text | TEXT | No | 译文文本 |
@@ -178,4 +186,24 @@ Table: translation_lines
 
 ```sql
 UNIQUE(version_id, line_no)
+UNIQUE(version_id, source_line_id)
+FOREIGN KEY(version_id, story_id) REFERENCES translation_versions(id, story_id)
+FOREIGN KEY(source_line_id, story_id) REFERENCES story_source_lines(id, story_id)
 ```
+
+## 同步任务日志表
+
+Table: sync_jobs
+
+| Field | Type | Nullable | Description |
+|---|---|---:|---|
+| id | BIGINT | No | 主键 |
+| job_type | VARCHAR(64) | No | 同步任务类型，例如 source_story_sync |
+| trigger_type | VARCHAR(32) | No | 触发方式：manual / scheduled |
+| status | VARCHAR(32) | No | 任务状态：pending / running / succeeded / failed |
+| started_at | DATETIME | Yes | 开始时间 |
+| ended_at | DATETIME | Yes | 结束时间 |
+| error_message | TEXT | Yes | 失败错误信息 |
+| metadata | JSON | Yes | 扩展信息 |
+| created_at | DATETIME | No | 创建时间 |
+| updated_at | DATETIME | No | 更新时间 |
