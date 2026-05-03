@@ -24,8 +24,8 @@ public sealed class TestSeedDataTests(IntegrationTestDatabaseFixture fixture)
             })
             .SingleAsync();
 
-        Assert.Equal("super_admin", seeded.Role);
-        Assert.Equal("active", seeded.Status);
+        Assert.Equal(UserTenantRoles.SuperAdmin, seeded.Role);
+        Assert.Equal(UserTenantStatuses.Active, seeded.Status);
         Assert.NotNull(seeded.PasswordHash);
 
         var verification = new PasswordHasher<User>().VerifyHashedPassword(

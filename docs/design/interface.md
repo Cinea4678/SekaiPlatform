@@ -113,14 +113,23 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 
 输入：
 
-- 用户名
-- 密码
+- `username`：QQ 号，对应 `users.qq_id`
+- `password`：登录密码
+
+响应：
+
+- `access_token`：JWT，可用于 `Authorization: Bearer <token>`
+- `expires_at`：Token 过期时间
+- `user`：当前用户资料
+- `current_tenant`：当前租户，未选择租户时为 `null`
+- `tenants`：当前用户 active 租户列表
 
 处理规则：
 
 - 用户没有可访问租户时，拒绝登录。
 - 用户只有一个可访问租户时，登录后直接设置该租户。
 - 用户有多个可访问租户时，当前租户为空，客户端进入租户选择阶段。
+- 登录成功后 API Service 同时写入 `SEKAI_PLATFORM_AUTH` HttpOnly Cookie。
 
 ### 加载可用租户
 
@@ -133,6 +142,15 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 ### 用户选择租户 / 切换租户
 
 设置当前登录状态中的当前租户。
+
+输入：
+
+- `tenant_id`
+
+处理规则：
+
+- 只能选择当前用户 active 租户。
+- 切换成功后重新签发 JWT，并刷新 `SEKAI_PLATFORM_AUTH` Cookie。
 
 ### 用户登出接口
 
@@ -148,13 +166,25 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 
 输入：
 
-- QQ 号
-- 角色
+- `qq_id`：被邀请用户 QQ 号
+- `role`：`normal` / `admin` / `super_admin`
+
+响应：
+
+- `user`：被邀请用户资料
+- `membership`：当前租户成员关系
+- `created_user`：是否创建了新用户
+- `created_membership`：是否创建了新成员关系
+- `default_password`：新用户默认密码；既有用户为 `null`
 
 处理规则：
 
 - 用户已存在时，添加用户租户关系。
-- 用户不存在时，创建默认用户和默认密码，再添加用户租户关系。
+- 用户不存在时，创建默认用户，默认密码为 QQ 号后六位，再添加用户租户关系。
+- 当前租户 `admin` 或 `super_admin` 可以邀请普通用户。
+- 只有 `super_admin` 可以授予 `admin` 或 `super_admin` 角色。
+- 重复邀请同一用户且角色相同时不会创建重复成员关系。
+- 用户已属于当前租户但角色不同的，邀请接口返回冲突错误；角色调整留给后续显式用户管理接口。
 
 ## 语言资产
 

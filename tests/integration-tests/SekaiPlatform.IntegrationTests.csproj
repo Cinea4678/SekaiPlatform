@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\apps\api-service\SekaiPlatform.ApiService.csproj" />
+    <ProjectReference Include="..\..\apps\auth-service\SekaiPlatform.AuthService.csproj" Aliases="AuthService" />
     <ProjectReference Include="..\..\database\SekaiPlatform.Database.csproj" />
   </ItemGroup>
 

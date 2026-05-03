@@ -40,6 +40,8 @@ public static class SekaiWebApplicationBuilderExtensions
             .GetSection(SekaiJwtOptions.SectionName)
             .Get<SekaiJwtOptions>() ?? new SekaiJwtOptions();
         ValidateJwtOptions(jwtOptions);
+        builder.Services.Configure<SekaiJwtOptions>(
+            builder.Configuration.GetSection(SekaiJwtOptions.SectionName));
 
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -48,7 +50,20 @@ public static class SekaiWebApplicationBuilderExtensions
                 options.TokenValidationParameters = CreateTokenValidationParameters(jwtOptions);
                 options.Events = CreateJwtBearerEvents();
             });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy(
+                SekaiAuthorizationPolicies.LoggedIn,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim(SekaiAuthDefaults.UserIdClaimType));
+            options.AddPolicy(
+                SekaiAuthorizationPolicies.TenantSelected,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim(SekaiAuthDefaults.UserIdClaimType)
+                    .RequireClaim(SekaiAuthDefaults.TenantIdClaimType));
+        });
 
         return builder;
     }

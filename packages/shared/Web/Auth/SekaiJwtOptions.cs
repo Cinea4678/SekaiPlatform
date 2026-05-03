@@ -9,4 +9,6 @@ public sealed class SekaiJwtOptions
     public string Audience { get; init; } = string.Empty;
 
     public string SigningKey { get; init; } = string.Empty;
+
+    public int AccessTokenLifetimeMinutes { get; init; } = 7 * 24 * 60;
 }

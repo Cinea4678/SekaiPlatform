@@ -50,8 +50,8 @@ internal static class DatabaseInitializer
         var admin = await EnsureUserAsync(dbContext, AdminQqId, "本地管理员", seedUsers.AdminPassword, now);
         var testUser = await EnsureUserAsync(dbContext, TestQqId, "本地测试用户", seedUsers.TestPassword, now);
 
-        await EnsureMembershipAsync(dbContext, tenant.Id, admin.Id, "super_admin", now);
-        await EnsureMembershipAsync(dbContext, tenant.Id, testUser.Id, "normal", now);
+        await EnsureMembershipAsync(dbContext, tenant.Id, admin.Id, UserTenantRoles.SuperAdmin, now);
+        await EnsureMembershipAsync(dbContext, tenant.Id, testUser.Id, UserTenantRoles.Normal, now);
 
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -101,7 +101,7 @@ internal static class DatabaseInitializer
                 TenantId = tenantId,
                 UserId = userId,
                 Role = role,
-                Status = "active",
+                Status = UserTenantStatuses.Active,
                 CreatedAt = now,
                 UpdatedAt = now
             });

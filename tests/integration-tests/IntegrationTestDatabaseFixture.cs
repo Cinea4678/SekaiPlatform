@@ -7,9 +7,16 @@ namespace SekaiPlatform.IntegrationTests;
 public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 {
     public const string TenantName = "集成测试租户";
+    public const string SecondTenantName = "集成测试第二租户";
     public const string AdminQqId = "900000000001";
     public const string AdminDisplayName = "集成测试超级管理员";
     public const string AdminPassword = "sekai-integration-test-password";
+    public const string TenantAdminQqId = "900000000002";
+    public const string TenantAdminPassword = "sekai-integration-test-admin-password";
+    public const string NormalUserQqId = "900000000003";
+    public const string NormalUserPassword = "sekai-integration-test-normal-password";
+    public const string MultiTenantUserQqId = "900000000004";
+    public const string MultiTenantUserPassword = "sekai-integration-test-multi-password";
 
     private const string ConnectionStringEnvironmentName = "SEKAI_INTEGRATION_TEST_POSTGRES";
 
@@ -41,55 +48,86 @@ public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         var now = DateTimeOffset.UtcNow;
 
-        var tenant = await dbContext.Tenants.FirstOrDefaultAsync(item => item.Name == TenantName);
-        if (tenant is null)
-        {
-            tenant = new Tenant { Name = TenantName };
-            dbContext.Tenants.Add(tenant);
-            await dbContext.SaveChangesAsync();
-        }
+        var tenant = await EnsureTenantAsync(dbContext, TenantName);
+        var secondTenant = await EnsureTenantAsync(dbContext, SecondTenantName);
 
-        var admin = await dbContext.Users.FirstOrDefaultAsync(item => item.QqId == AdminQqId);
-        if (admin is null)
-        {
-            admin = new User
-            {
-                QqId = AdminQqId,
-                DisplayName = AdminDisplayName,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-            dbContext.Users.Add(admin);
-            await dbContext.SaveChangesAsync();
-        }
+        var admin = await EnsureUserAsync(dbContext, AdminQqId, AdminDisplayName, AdminPassword, now);
+        var tenantAdmin = await EnsureUserAsync(dbContext, TenantAdminQqId, "集成测试管理员", TenantAdminPassword, now);
+        var normalUser = await EnsureUserAsync(dbContext, NormalUserQqId, "集成测试普通用户", NormalUserPassword, now);
+        var multiTenantUser = await EnsureUserAsync(dbContext, MultiTenantUserQqId, "集成测试多租户用户", MultiTenantUserPassword, now);
 
-        admin.DisplayName = AdminDisplayName;
-        admin.PasswordHash = new PasswordHasher<User>().HashPassword(admin, AdminPassword);
-        admin.UpdatedAt = now;
-
-        var membership = await dbContext.UserTenants.FindAsync(tenant.Id, admin.Id);
-        if (membership is null)
-        {
-            dbContext.UserTenants.Add(new UserTenant
-            {
-                TenantId = tenant.Id,
-                UserId = admin.Id,
-                Role = "super_admin",
-                Status = "active",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        }
-        else
-        {
-            membership.Role = "super_admin";
-            membership.Status = "active";
-            membership.DeletedAt = null;
-            membership.UpdatedAt = now;
-        }
+        await EnsureMembershipAsync(dbContext, tenant.Id, admin.Id, UserTenantRoles.SuperAdmin, now);
+        await EnsureMembershipAsync(dbContext, tenant.Id, tenantAdmin.Id, UserTenantRoles.Admin, now);
+        await EnsureMembershipAsync(dbContext, tenant.Id, normalUser.Id, UserTenantRoles.Normal, now);
+        await EnsureMembershipAsync(dbContext, tenant.Id, multiTenantUser.Id, UserTenantRoles.Normal, now);
+        await EnsureMembershipAsync(dbContext, secondTenant.Id, multiTenantUser.Id, UserTenantRoles.Normal, now);
 
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
+    }
+
+    private static async Task<Tenant> EnsureTenantAsync(SekaiPlatformDbContext dbContext, string name)
+    {
+        var tenant = await dbContext.Tenants.FirstOrDefaultAsync(item => item.Name == name);
+        if (tenant is not null)
+        {
+            return tenant;
+        }
+
+        tenant = new Tenant { Name = name };
+        dbContext.Tenants.Add(tenant);
+        await dbContext.SaveChangesAsync();
+        return tenant;
+    }
+
+    private static async Task<User> EnsureUserAsync(
+        SekaiPlatformDbContext dbContext,
+        string qqId,
+        string displayName,
+        string password,
+        DateTimeOffset now)
+    {
+        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.QqId == qqId);
+        if (user is null)
+        {
+            user = new User
+            {
+                QqId = qqId,
+                CreatedAt = now
+            };
+            dbContext.Users.Add(user);
+            await dbContext.SaveChangesAsync();
+        }
+
+        user.DisplayName = displayName;
+        user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+        user.UpdatedAt = now;
+        return user;
+    }
+
+    private static async Task EnsureMembershipAsync(
+        SekaiPlatformDbContext dbContext,
+        long tenantId,
+        long userId,
+        string role,
+        DateTimeOffset now)
+    {
+        var membership = await dbContext.UserTenants.FindAsync(tenantId, userId);
+        if (membership is null)
+        {
+            membership = new UserTenant
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                CreatedAt = now
+            };
+            dbContext.UserTenants.Add(membership);
+        }
+
+        membership.Role = role;
+        membership.Status = UserTenantStatuses.Active;
+        membership.DeletedAt = null;
+        membership.UpdatedAt = now;
     }
 
     private static string CreateConnectionString()
