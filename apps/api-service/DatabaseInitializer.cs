@@ -5,8 +5,7 @@ using SekaiPlatform.Database;
 internal static class DatabaseInitializer
 {
     private const string DefaultTenantName = "PJS 字幕组";
-    private const string AdminQqId = "10000";
-    private const string TestQqId = "10001";
+    private const string AdminQqId = "1650121748";
 
     public static async Task InitializeAsync(WebApplication app)
     {
@@ -47,11 +46,9 @@ internal static class DatabaseInitializer
             await dbContext.SaveChangesAsync();
         }
 
-        var admin = await EnsureUserAsync(dbContext, AdminQqId, "本地管理员", seedUsers.AdminPassword, now);
-        var testUser = await EnsureUserAsync(dbContext, TestQqId, "本地测试用户", seedUsers.TestPassword, now);
+        var admin = await EnsureUserAsync(dbContext, AdminQqId, "本地超级管理员", seedUsers.AdminPassword, now);
 
         await EnsureMembershipAsync(dbContext, tenant.Id, admin.Id, UserTenantRoles.SuperAdmin, now);
-        await EnsureMembershipAsync(dbContext, tenant.Id, testUser.Id, UserTenantRoles.Normal, now);
 
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -118,6 +115,5 @@ internal static class DatabaseInitializer
     private sealed class SeedUserOptions
     {
         public string? AdminPassword { get; set; }
-        public string? TestPassword { get; set; }
     }
 }

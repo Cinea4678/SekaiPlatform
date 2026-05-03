@@ -23,8 +23,8 @@ Phase 2：数据库已完成。
   - `sync_jobs`
 - API Service、Auth Service、Asset Service、Sync Worker 已接入 DbContext。
 - API Service 在 Docker Compose 的 Development 环境中默认自动执行 migration 和 seed。
-- seed 后会创建默认租户、管理员用户和测试用户。
-- 默认 seed 用户不写入可登录密码；本地可通过 `SEED_ADMIN_PASSWORD` 和 `SEED_TEST_PASSWORD` 写入密码哈希。
+- seed 后会创建默认租户和默认超级管理员用户。
+- 默认 seed 用户不写入可登录密码；本地可通过 `SEED_ADMIN_PASSWORD` 写入密码哈希。
 
 ## Seed 数据
 
@@ -36,8 +36,7 @@ Phase 2：数据库已完成。
 
 | QQ 号 | 角色 | 说明 |
 |---|---|---|
-| `10000` | `super_admin` | 本地管理员用户 |
-| `10001` | `normal` | 本地测试用户 |
+| `1650121748` | `super_admin` | 本地超级管理员用户 |
 
 ## 验证结果
 
