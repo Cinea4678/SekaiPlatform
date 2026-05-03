@@ -28,6 +28,7 @@ services:
       - elasticsearch-data:/usr/share/elasticsearch/data
 
   api-service:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/api-service/Dockerfile
@@ -50,6 +51,7 @@ services:
         condition: service_started
 
   auth-service:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/auth-service/Dockerfile
@@ -64,6 +66,7 @@ services:
         condition: service_healthy
 
   asset-service:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/asset-service/Dockerfile
@@ -71,6 +74,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-sekai_platform};Username=${POSTGRES_USER:-sekai_platform};Password=${POSTGRES_PASSWORD:-sekai_platform}"
       InternalServices__SearchService: "http://search-service:8080"
+      Jwt__Issuer: ${JWT_ISSUER:-sekai-platform}
+      Jwt__Audience: ${JWT_AUDIENCE:-sekai-platform}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-replace-with-local-development-signing-key}
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,17 +84,22 @@ services:
         condition: service_started
 
   search-service:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/search-service/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Elasticsearch__Url: "http://elasticsearch:9200"
+      Jwt__Issuer: ${JWT_ISSUER:-sekai-platform}
+      Jwt__Audience: ${JWT_AUDIENCE:-sekai-platform}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-replace-with-local-development-signing-key}
     depends_on:
       elasticsearch:
         condition: service_started
 
   sync-worker:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/sync-worker/Dockerfile

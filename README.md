@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前处于 Phase 0 仓库基础阶段。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 1 共享约定。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 本地依赖
 
@@ -37,11 +37,25 @@ API Service 健康检查：
 curl http://localhost:8080/health
 ```
 
+内部服务健康聚合：
+
+```bash
+curl http://localhost:8080/api/internal-services/health
+```
+
 如果 Apple Silicon / M 系列机器上 Elasticsearch 因 JVM `SIGILL` 退出，可在 `.env` 中改为：
 
 ```bash
 ELASTICSEARCH_JAVA_OPTS=-Xms512m -Xmx512m -XX:UseSVE=0
 ELASTICSEARCH_CLI_JAVA_OPTS=-XX:UseSVE=0
+```
+
+当前 Docker Compose 中 5 个 .NET 服务固定为 `linux/amd64` 平台，用于规避本机 Docker Desktop 下 .NET 10 ARM64 SDK 容器在构建阶段偶发 `Illegal instruction` 的问题。Dockerfile 本身不设置硬件指令兼容开关，避免影响其他部署环境。
+
+如果本机已有进程占用 IPv4 `localhost:8080`，可以使用 IPv6 loopback 访问 API Service：
+
+```bash
+curl -g 'http://[::1]:8080/health'
 ```
 
 ## .NET 工程

@@ -81,6 +81,8 @@
 - 错误响应返回 `{ msg, trace_id }`。
 - API Service 能调用内部服务的健康检查。
 
+完成记录：见 [Phase 1 完成记录](phase-1-status.md)。
+
 ## 阶段 2：数据库
 
 ### 任务

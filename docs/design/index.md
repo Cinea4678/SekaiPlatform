@@ -157,6 +157,35 @@ Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索
 - Docker Compose 下使用服务名作为内部网络地址。
 - 通过 ASP.NET Core 的配置、健康检查、日志和依赖注入管理服务连接。
 
+## 日志和追踪设计
+
+后端服务使用 .NET `System.Diagnostics.Activity` 作为请求追踪上下文，日志使用 ASP.NET Core `ILogger`。
+
+追踪约定：
+
+- `trace_id` 优先使用 `Activity.Current.TraceId`。
+- 没有 Activity 时，回退到 `HttpContext.TraceIdentifier`。
+- 错误响应中的 `trace_id` 与当前请求日志 scope 中的 `trace_id` 保持一致。
+- 服务间 HTTP 调用传播标准 W3C Trace Context，即 `traceparent`。
+- 同时透传平台自定义排障 Header：`X-Sekai-Trace-Id`。
+
+日志约定：
+
+- 每个请求进入服务后开启 logging scope。
+- scope 字段至少包含 `trace_id`、`user_id`、`tenant_id`。
+- 控制台日志输出 scope。
+- ASP.NET Core logging 启用 `ActivityTrackingOptions.TraceId`、`SpanId`、`ParentId`。
+- 同一次外部请求跨多个服务时，`TraceId` 保持一致，`SpanId` 表示每个服务内的当前调用片段。
+
+上下文 Header：
+
+| Header | 说明 |
+|---|---|
+| `traceparent` | W3C Trace Context 标准 Header。 |
+| `X-Sekai-Trace-Id` | 平台可读追踪 ID，用于错误响应和人工排障。 |
+| `X-Sekai-User-Id` | 当前用户 ID，由 API Service 传递给内部服务。 |
+| `X-Sekai-Tenant-Id` | 当前租户 ID，由 API Service 传递给内部服务。 |
+
 ## API 文档
 
 - API 文档使用 Apifox 编写和维护。
