@@ -186,6 +186,14 @@ Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索
 | `X-Sekai-User-Id` | 当前用户 ID，由 API Service 传递给内部服务。 |
 | `X-Sekai-Tenant-Id` | 当前租户 ID，由 API Service 传递给内部服务。 |
 
+Header 信任边界：
+
+- 外部入口不得信任客户端传入的 `X-Sekai-User-Id`、`X-Sekai-Tenant-Id`。
+- API Service 必须基于已验证登录状态覆盖或剥离客户端自带的同名上下文 Header。
+- 只有 API Service 到内部服务的受控链路可以写入用户和租户上下文 Header。
+- 内部服务读取这些 Header 仅作为服务间上下文传递结果，不能将其作为绕过鉴权的独立依据。
+- 如果内部服务未来暴露到公网、跨网络边界或绕过 API Service 访问，必须补充服务间认证或网关隔离。
+
 ## API 文档
 
 - API 文档使用 Apifox 编写和维护。

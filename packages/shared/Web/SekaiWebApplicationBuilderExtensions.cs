@@ -12,6 +12,8 @@ namespace SekaiPlatform.Shared.Web;
 
 public static class SekaiWebApplicationBuilderExtensions
 {
+    private const int MinimumSigningKeyBytes = 32;
+
     public static WebApplicationBuilder AddSekaiPlatformWebDefaults(this WebApplicationBuilder builder)
     {
         builder.Logging.Configure(options =>
@@ -37,6 +39,7 @@ public static class SekaiWebApplicationBuilderExtensions
         var jwtOptions = builder.Configuration
             .GetSection(SekaiJwtOptions.SectionName)
             .Get<SekaiJwtOptions>() ?? new SekaiJwtOptions();
+        ValidateJwtOptions(jwtOptions);
 
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -131,6 +134,36 @@ public static class SekaiWebApplicationBuilderExtensions
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+    }
+
+    private static void ValidateJwtOptions(SekaiJwtOptions options)
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(options.Issuer))
+        {
+            errors.Add("Jwt:Issuer must be configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Audience))
+        {
+            errors.Add("Jwt:Audience must be configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.SigningKey))
+        {
+            errors.Add("Jwt:SigningKey must be configured.");
+        }
+        else if (Encoding.UTF8.GetByteCount(options.SigningKey) < MinimumSigningKeyBytes)
+        {
+            errors.Add($"Jwt:SigningKey must be at least {MinimumSigningKeyBytes} UTF-8 bytes.");
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Invalid JWT configuration: " + string.Join(" ", errors));
+        }
     }
 
     private static JwtBearerEvents CreateJwtBearerEvents()

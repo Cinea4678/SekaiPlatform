@@ -20,6 +20,10 @@ Phase 1：共享约定已完成。
 - JWT Bearer 支持两种 token 传递方式：
   - `Authorization: Bearer <token>`。
   - `SEKAI_PLATFORM_AUTH` Cookie。
+- JWT 配置在服务启动时校验：
+  - `Jwt:Issuer` 必须非空。
+  - `Jwt:Audience` 必须非空。
+  - `Jwt:SigningKey` 必须非空且至少 32 个 UTF-8 字节。
 - 所有 Web API 服务保留 `/health`。
 - API Service 新增内部服务健康聚合接口：
   - `GET /api/internal-services/health`
@@ -27,6 +31,10 @@ Phase 1：共享约定已完成。
   - 使用 named `HttpClient`。
   - 自动透传 `X-Sekai-Trace-Id`、`X-Sekai-User-Id`、`X-Sekai-Tenant-Id`。
   - 依赖 .NET Activity 传播标准 W3C `traceparent`。
+- Header 信任边界已记录到 `docs/design/index.md`：
+  - 外部入口不信任客户端传入的用户和租户上下文 Header。
+  - API Service 负责基于已验证登录状态覆盖或剥离同名 Header。
+  - 内部服务不能将上下文 Header 作为绕过鉴权的独立依据。
 - 日志和追踪约定已落到 `docs/design/index.md`。
 - API 文档由 Apifox 项目 `8210187` 维护，本阶段不新增本地 OpenAPI 文件。
 
@@ -57,6 +65,7 @@ Phase 3 实现登录和租户选择时需要补齐：
 - JWT 签发逻辑。
 - 登录成功后写入 `SEKAI_PLATFORM_AUTH` Cookie。
 - 用户 ID 和当前租户 ID 的 claims。
+- 外部入口 Header 信任边界验收项，并在 Apifox 备注中说明。
 
 ## 本地注意事项
 
