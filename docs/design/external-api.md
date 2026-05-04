@@ -2,7 +2,7 @@
 
 ## 结论
 
-阶段四优先对接 Moe Sekai。Moe Sekai 对接方案使用 Exmeaning master JSON 和资源镜像，具体 URL、字段映射和同步流程见 @external-api-moe.md。
+当前优先对接 Moe Sekai。Moe Sekai 对接方案使用 Exmeaning master JSON 和资源镜像，具体 URL、字段映射和同步流程见 @external-api-moe.md。
 
 SekaiText 作为补充参考，用于确认 Unity scenario JSON 的解析方式、剧情类型映射和其他资源源站差异。本平台一期所谓“外部 API”主要不是传统业务 REST API，而是两类公共静态数据源：
 
@@ -219,7 +219,7 @@ https://assets.unipjsk.com/voice/{scenarioId}/{voiceId}.mp3
 
 一期平台以语言资产检索为目标，语音资源作为 metadata 保留，不作为必须下载的资产。
 
-## 阶段四实现指令
+## 同步实现指令
 
 1. Sync Worker 同步 master JSON，保存原始响应和转换后的导航数据。
 2. Asset Service 或 Sync Worker 根据导航数据生成 scenario 下载任务。
@@ -239,9 +239,9 @@ https://assets.unipjsk.com/voice/{scenarioId}/{voiceId}.mp3
 
 具体映射规则见 @data-model.md。
 
-### 阶段四同步范围
+### 同步范围
 
-阶段四同步以下 master JSON：
+同步以下 master JSON：
 
 | 文件 | 用途 |
 |---|---|
@@ -256,7 +256,7 @@ https://assets.unipjsk.com/voice/{scenarioId}/{voiceId}.mp3
 | `mobCharacters.json` | mob 角色名称映射。 |
 | `specialStories.json` | 特殊剧情章节和 `scenarioId`。 |
 
-阶段四下载并解析 event / unit / card / area / special 对应的 scenario JSON。语音、BGM、背景、活动概要和社区译文先作为 metadata 或后续增强能力处理。
+同步流程下载并解析 event / unit / card / area / special 对应的 scenario JSON。语音、BGM、背景、活动概要和社区译文先作为 metadata 或后续增强能力处理。
 
 需要注意：
 
