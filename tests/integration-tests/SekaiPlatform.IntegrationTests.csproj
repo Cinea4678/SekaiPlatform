@@ -23,6 +23,8 @@
     <ProjectReference Include="..\..\apps\api-service\SekaiPlatform.ApiService.csproj" />
     <ProjectReference Include="..\..\apps\auth-service\SekaiPlatform.AuthService.csproj" Aliases="AuthService" />
     <ProjectReference Include="..\..\database\SekaiPlatform.Database.csproj" />
+    <ProjectReference Include="..\..\packages\source-sync\SekaiPlatform.SourceSync.csproj" />
+    <ProjectReference Include="..\..\apps\asset-service\SekaiPlatform.AssetService.csproj" Aliases="AssetService" />
   </ItemGroup>
 
 </Project>

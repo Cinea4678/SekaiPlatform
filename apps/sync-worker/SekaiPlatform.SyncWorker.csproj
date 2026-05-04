@@ -16,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\packages\shared\SekaiPlatform.Shared.csproj" />
     <ProjectReference Include="..\..\database\SekaiPlatform.Database.csproj" />
+    <ProjectReference Include="..\..\packages\source-sync\SekaiPlatform.SourceSync.csproj" />
   </ItemGroup>
 </Project>

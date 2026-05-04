@@ -1,0 +1,387 @@
+extern alias AssetService;
+extern alias AuthService;
+
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using SekaiPlatform.Database;
+using SekaiPlatform.SourceSync;
+using AssetServiceProgram = AssetService::Program;
+using AuthServiceProgram = AuthService::Program;
+
+namespace SekaiPlatform.IntegrationTests;
+
+[Collection(IntegrationTestCollection.Name)]
+public sealed class SyncApiTests : IDisposable
+{
+    private readonly IntegrationTestDatabaseFixture fixture;
+    private readonly AuthServiceFactory authFactory;
+    private readonly AssetServiceFactory assetFactory;
+    private readonly ApiServiceFactory apiFactory;
+
+    public SyncApiTests(IntegrationTestDatabaseFixture fixture)
+    {
+        this.fixture = fixture;
+        authFactory = new AuthServiceFactory(fixture.ConnectionString);
+        assetFactory = new AssetServiceFactory(
+            fixture.ConnectionString,
+            new FakeMoeSekaiHandler("scenario_event_success", scenarioSucceeds: true));
+        apiFactory = new ApiServiceFactory(fixture.ConnectionString, authFactory, assetFactory);
+    }
+
+    [Fact]
+    public async Task ManualSync_AdminCreatesStoriesSourceLinesAndSucceededJob()
+    {
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.AdminQqId,
+            IntegrationTestDatabaseFixture.AdminPassword);
+
+        using var response = await SendWithBearerAsync(
+            client,
+            HttpMethod.Post,
+            "/api/sync/jobs",
+            login.Token,
+            new { source = "moesekai" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await ReadJsonAsync(response);
+        Assert.Equal("source_story_sync", json.RootElement.GetProperty("job_type").GetString());
+        Assert.Equal("manual", json.RootElement.GetProperty("trigger_type").GetString());
+        Assert.Equal("succeeded", json.RootElement.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Object, json.RootElement.GetProperty("metadata").ValueKind);
+
+        await using var dbContext = fixture.CreateDbContext();
+        var story = await dbContext.Stories.SingleAsync(item => item.ScenarioId == "scenario_event_success");
+        Assert.Equal(SourceSyncConstants.EventStory, story.StoryType);
+        Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(item => item.StoryId == story.Id));
+
+        using var list = await SendWithBearerAsync(client, HttpMethod.Get, "/api/sync/jobs?limit=1", login.Token);
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManualSync_NormalUserIsForbidden()
+    {
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.NormalUserQqId,
+            IntegrationTestDatabaseFixture.NormalUserPassword);
+
+        using var response = await SendWithBearerAsync(
+            client,
+            HttpMethod.Post,
+            "/api/sync/jobs",
+            login.Token,
+            new { source = "moesekai" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertErrorResponseAsync(response);
+    }
+
+    [Fact]
+    public async Task PartialScenarioFailureKeepsJobSucceededAndRecordsMetadata()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var handler = new FakeMoeSekaiHandler(
+            "scenario_event_success_partial",
+            scenarioSucceeds: true,
+            "scenario_event_missing_partial",
+            extraScenarioSucceeds: false);
+        var options = handler.CreateOptions();
+        var runner = new SourceStorySyncRunner(
+            dbContext,
+            new MoeSekaiMasterClient(new HttpClient(handler), options),
+            new MoeSekaiScenarioClient(new HttpClient(handler), options),
+            new MoeSekaiCatalogBuilder(),
+            new UnityScenarioParser(),
+            options);
+
+        var job = await runner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+
+        Assert.Equal(SourceSyncConstants.StatusSucceeded, job.Status);
+        using var metadata = JsonDocument.Parse(job.Metadata!);
+        Assert.Equal(1, metadata.RootElement.GetProperty("failed_scenario_count").GetInt32());
+        Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(line =>
+            line.Story!.ScenarioId == "scenario_event_success_partial"));
+        Assert.Equal(0, await dbContext.StorySourceLines.CountAsync(line =>
+            line.Story!.ScenarioId == "scenario_event_missing_partial"));
+    }
+
+    [Fact]
+    public async Task ScenarioTotalFailureMarksJobFailed()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var handler = new FakeMoeSekaiHandler("scenario_event_total_missing", scenarioSucceeds: false);
+        var options = handler.CreateOptions();
+        var runner = new SourceStorySyncRunner(
+            dbContext,
+            new MoeSekaiMasterClient(new HttpClient(handler), options),
+            new MoeSekaiScenarioClient(new HttpClient(handler), options),
+            new MoeSekaiCatalogBuilder(),
+            new UnityScenarioParser(),
+            options);
+
+        var job = await runner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+
+        Assert.Equal(SourceSyncConstants.StatusFailed, job.Status);
+        Assert.Equal("Source story sync failed.", job.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ManualSync_WithMalformedJson_ReturnsBadRequest()
+    {
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.AdminQqId,
+            IntegrationTestDatabaseFixture.AdminPassword);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/sync/jobs")
+        {
+            Content = new StringContent("{", Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", login.Token);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorResponseAsync(response);
+    }
+
+    public void Dispose()
+    {
+        apiFactory.Dispose();
+        assetFactory.Dispose();
+        authFactory.Dispose();
+    }
+
+    private static async Task<LoginResult> LoginAsync(HttpClient client, string username, string password)
+    {
+        using var response = await client.PostAsJsonAsync("/api/auth/login", new { username, password });
+        response.EnsureSuccessStatusCode();
+
+        var json = await ReadJsonAsync(response);
+        var token = json.RootElement.GetProperty("access_token").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(token));
+
+        return new LoginResult(token!, json);
+    }
+
+    private static Task<HttpResponseMessage> SendWithBearerAsync(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        string token,
+        object? body = null)
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        return client.SendAsync(request);
+    }
+
+    private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
+    {
+        var stream = await response.Content.ReadAsStreamAsync();
+        return await JsonDocument.ParseAsync(stream);
+    }
+
+    private static async Task AssertErrorResponseAsync(HttpResponseMessage response)
+    {
+        var json = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("msg").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("trace_id").GetString()));
+    }
+
+    private sealed record LoginResult(string Token, JsonDocument Json);
+
+    private sealed class AuthServiceFactory(string connectionString) : WebApplicationFactory<AuthServiceProgram>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+            });
+        }
+    }
+
+    private sealed class AssetServiceFactory(
+        string connectionString,
+        FakeMoeSekaiHandler handler) : WebApplicationFactory<AssetServiceProgram>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+            });
+
+            builder.ConfigureTestServices(services =>
+            {
+                var options = handler.CreateOptions();
+                services.AddSingleton(options);
+                services.AddSingleton(new MoeSekaiMasterClient(new HttpClient(handler), options));
+                services.AddSingleton(new MoeSekaiScenarioClient(new HttpClient(handler), options));
+            });
+        }
+    }
+
+    private sealed class ApiServiceFactory(
+        string connectionString,
+        AuthServiceFactory authFactory,
+        AssetServiceFactory assetFactory) : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+            });
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddHttpClient("auth-service")
+                    .ConfigurePrimaryHttpMessageHandler(() => authFactory.Server.CreateHandler());
+                services.AddHttpClient("asset-service")
+                    .ConfigurePrimaryHttpMessageHandler(() => assetFactory.Server.CreateHandler());
+            });
+        }
+    }
+
+    private sealed class FakeMoeSekaiHandler(
+        string scenarioId,
+        bool scenarioSucceeds,
+        string? extraScenarioId = null,
+        bool extraScenarioSucceeds = false) : HttpMessageHandler
+    {
+        public MoeSekaiSourceSyncOptions CreateOptions()
+        {
+            return new MoeSekaiSourceSyncOptions
+            {
+                MasterBaseUrls = ["http://moesekai.test/master/"],
+                VersionUrls = ["http://moesekai.test/versions/current_version.json"],
+                AssetBaseUrls = ["http://moesekai.test/assets/"]
+            };
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "";
+            if (path == "/versions/current_version.json")
+            {
+                return JsonAsync("""{"dataVersion":"test-master","assetVersion":"test-asset"}""");
+            }
+
+            if (path == "/master/events.json")
+            {
+                return JsonAsync("""[{"id":901001,"name":"测试活动","assetbundleName":"event_story_901001"}]""");
+            }
+
+            if (path == "/master/eventStories.json")
+            {
+                var extraEpisode = extraScenarioId is null
+                    ? ""
+                    : $$"""
+                      ,{
+                        "id": 2,
+                        "eventStoryId": 901001,
+                        "episodeNo": 2,
+                        "title": "第2话",
+                        "assetbundleName": "event_story_901001",
+                        "scenarioId": "{{extraScenarioId}}",
+                        "releaseConditionId": 1
+                      }
+                    """;
+                return JsonAsync($$"""
+                [{
+                  "id": 901001,
+                  "eventId": 901001,
+                  "outline": "测试活动剧情",
+                  "assetbundleName": "event_story_901001",
+                  "eventStoryEpisodes": [{
+                    "id": 1,
+                    "eventStoryId": 901001,
+                    "episodeNo": 1,
+                    "title": "第1话",
+                    "assetbundleName": "event_story_901001",
+                    "scenarioId": "{{scenarioId}}",
+                    "releaseConditionId": 1
+                  }{{extraEpisode}}]
+                }]
+                """);
+            }
+
+            if (path.StartsWith("/master/", StringComparison.Ordinal))
+            {
+                return JsonAsync("[]");
+            }
+
+            if ((path == $"/assets/event_story/event_story_901001/scenario/{scenarioId}.json" && scenarioSucceeds)
+                || (path == $"/assets/event_story/event_story_901001/scenario/{extraScenarioId}.json" && extraScenarioSucceeds))
+            {
+                var matchedScenarioId = path.Contains(scenarioId, StringComparison.Ordinal) ? scenarioId : extraScenarioId;
+                return JsonAsync($$"""
+                {
+                  "ScenarioId": "{{matchedScenarioId}}",
+                  "Snippets": [
+                    { "Index": 0, "Action": 1, "ReferenceIndex": 0 },
+                    { "Index": 1, "Action": 6, "ReferenceIndex": 0 }
+                  ],
+                  "TalkData": [{
+                    "TalkCharacters": [],
+                    "WindowDisplayName": "ミク",
+                    "Body": "こんにちは",
+                    "Voices": [{ "VoiceId": "voice_001", "Volume": 100 }],
+                    "WhenFinishCloseWindow": 1
+                  }],
+                  "SpecialEffectData": [{ "EffectType": 18, "StringVal": "教室", "StringValSub": "", "IntVal": 0 }]
+                }
+                """);
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+
+        private static Task<HttpResponseMessage> JsonAsync(string json)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    private static Dictionary<string, string?> CreateConfiguration(string connectionString)
+    {
+        return new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Postgres"] = connectionString,
+            ["InternalServices:AuthService"] = "http://auth-service",
+            ["InternalServices:AssetService"] = "http://asset-service",
+            ["InternalServices:SearchService"] = "http://search-service",
+            ["Jwt:Issuer"] = "sekai-platform",
+            ["Jwt:Audience"] = "sekai-platform",
+            ["Jwt:SigningKey"] = "replace-with-local-development-signing-key",
+            ["Database:AutoMigrate"] = "false",
+            ["Database:Seed"] = "false"
+        };
+    }
+}

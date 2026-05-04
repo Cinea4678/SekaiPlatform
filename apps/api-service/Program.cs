@@ -33,6 +33,7 @@ app.UseSekaiPlatformWebDefaults();
 app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapAuthProxyEndpoints();
+app.MapSyncProxyEndpoints();
 app.MapInternalServicesHealthEndpoints();
 
 await DatabaseInitializer.InitializeAsync(app);
