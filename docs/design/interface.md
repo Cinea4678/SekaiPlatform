@@ -5,7 +5,9 @@
 本文档用于确认 API 草案。正式 API 文档维护在 Apifox。
 
 - Apifox 项目编号：`8210187`
-- OpenAPI 源文件：`../openapi.yaml`
+- 文档站：<https://sekai-platform.apifox.cn/>
+
+当前仓库不维护本地 OpenAPI 源文件。接口文档以 Apifox 为准；如需机器可读文档，优先使用 ASP.NET Core 自动生成能力，或从 Apifox 导出/集成。
 
 ## 一期 API 总览
 

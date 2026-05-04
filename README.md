@@ -138,6 +138,7 @@ deploy/
 
 ## 约定
 
-- API 文档维护在 Apifox 项目 `8210187`。
+- API 文档维护在 Apifox 项目 `8210187`，文档站：<https://sekai-platform.apifox.cn/>。
+- 当前仓库不维护本地 OpenAPI 源文件；如需机器可读文档，优先使用 ASP.NET Core 自动生成能力，或从 Apifox 导出/集成。
 - .NET 工程初始化和引用管理优先使用 `dotnet` CLI。
 - 数据库访问和迁移使用 EF Core。

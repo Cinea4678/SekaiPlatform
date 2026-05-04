@@ -10,3 +10,5 @@
 
 - API 文档使用 Apifox 编写和维护。
 - Apifox 项目编号：`8210187`。
+- 文档站：<https://sekai-platform.apifox.cn/>。
+- 当前仓库不维护本地 OpenAPI 源文件。

@@ -36,7 +36,7 @@ Phase 1：共享约定已完成。
   - API Service 负责基于已验证登录状态覆盖或剥离同名 Header。
   - 内部服务不能将上下文 Header 作为绕过鉴权的独立依据。
 - 日志和追踪约定已落到 `docs/design/index.md`。
-- API 文档由 Apifox 项目 `8210187` 维护，本阶段不新增本地 OpenAPI 文件。
+- API 文档由 Apifox 项目 `8210187` 维护，文档站为 <https://sekai-platform.apifox.cn/>；本阶段不新增本地 OpenAPI 文件。
 
 ## 验证结果
 

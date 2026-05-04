@@ -61,4 +61,4 @@ Phase 1 可在当前基础上继续：
 - 定义 JWT、Cookie、Bearer Token 和错误响应格式。
 - 定义 API Service 到内部服务的 HTTP 调用约定。
 - 定义当前用户、当前租户在服务间传递的 header 或上下文格式。
-- 在 Apifox 项目 `8210187` 中维护 API 草案。
+- 在 Apifox 项目 `8210187` 中维护 API 草案，文档站为 <https://sekai-platform.apifox.cn/>。
