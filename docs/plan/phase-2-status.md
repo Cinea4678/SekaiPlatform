@@ -51,7 +51,7 @@ Phase 2：数据库已完成。
 - `GET http://[::1]:8080/api/internal-services/health` 返回 Auth、Asset、Search 均为 `healthy`
 - PostgreSQL 已创建 Phase 2 表和 `__EFMigrationsHistory`
 - PostgreSQL 已应用 `ReviewPhase2Constraints` 迁移，包含枚举 CHECK、租户成员创建者约束、翻译行剧情一致性约束
-- seed 后存在 1 个默认租户、2 个默认用户、2 条用户租户关系
+- seed 后存在 1 个默认租户、1 个默认超级管理员用户、1 条用户租户关系
 - 默认 seed 用户 `password_hash` 为空，未写入公开固定密码
 - API Service 重启后不会覆盖已有用户租户关系状态，确认 seed 幂等且不重置权限
 

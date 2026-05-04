@@ -303,9 +303,8 @@ QQ OAuth 作为后续主要登录方式保留设计，不在一期实现。
 
 ## 部署设计
 
-一期使用 Docker Compose 部署，至少包含：
+一期使用 Docker Compose 部署。当前后端本地环境包含：
 
-- Vue 前端容器。
 - API Service 容器。
 - Auth Service 容器。
 - Asset Service 容器。
@@ -313,6 +312,8 @@ QQ OAuth 作为后续主要登录方式保留设计，不在一期实现。
 - Sync Worker 容器。
 - PostgreSQL 容器。
 - Elasticsearch 容器。
+
+Vue 前端规划中，预期后续套在 API Service 入口下统一对外提供。
 
 部署目标：
 
