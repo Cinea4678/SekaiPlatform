@@ -21,7 +21,7 @@ Phase 5：搜索索引已完成。
 
 ## 安全说明
 
-- 索引重建接口仅作为内部服务间维护接口使用，不在 API Service 暴露给前端；调用方必须携带 `X-Sekai-Maintenance-Token`。
+- 索引重建接口仅作为内部服务间维护接口使用，不在 API Service 暴露给前端；调用方必须携带内部 token，并具备 `search.index.rebuild` scope。
 - Docker Compose 中 Elasticsearch 默认只绑定宿主机 `127.0.0.1:9200`，避免本地开发环境把无认证 ES 直接暴露到局域网。
 - 原文索引刷新失败不会回滚 PostgreSQL 同步结果，服务会记录错误日志，后续可通过重建接口修复。
 - 译文索引能力已可从数据库重建；Phase 7 导入接口完成后复用 translation 局部重建能力。

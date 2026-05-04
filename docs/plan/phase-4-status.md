@@ -49,7 +49,7 @@ Phase 4：外部数据源同步已完成。
 
 - 手动同步要求用户已登录并已选择当前租户，API 使用 `sekai.tenant_selected` 策略。
 - Asset Service 在业务逻辑中二次校验当前用户必须是当前租户的 `admin` 或 `super_admin`。
-- API Service 只转发登录态中的 bearer token 或认证 Cookie，不信任客户端直接传入的租户上下文 Header。
+- API Service 验证外部登录态后签发内部 token 调用 Asset Service，不转发外部 bearer token、认证 Cookie 或客户端直接传入的租户上下文 Header。
 - Moe Sekai URL 配置默认只允许 HTTPS 和固定 host allowlist；`AllowInsecureHttp` 仅用于本地或明确可信环境。
 - scenario 路径片段会经过校验和转义，避免 master 数据中的异常字段拼出任意 URL 路径。
 

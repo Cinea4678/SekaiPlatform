@@ -16,21 +16,30 @@ internal static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             return authService.LoginAsync(request, cancellationToken);
-        }).RequireRateLimiting("auth-login");
+        })
+        .RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.AuthLoginScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor]);
 
         app.MapGet("/internal/auth/session", (
             AuthApplicationService authService,
             CancellationToken cancellationToken) =>
         {
             return authService.GetSessionAsync(cancellationToken);
-        }).RequireAuthorization(SekaiAuthorizationPolicies.LoggedIn);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.AuthSessionReadScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true);
 
         app.MapGet("/internal/auth/tenants", (
             AuthApplicationService authService,
             CancellationToken cancellationToken) =>
         {
             return authService.GetTenantsAsync(cancellationToken);
-        }).RequireAuthorization(SekaiAuthorizationPolicies.LoggedIn);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.AuthTenantsReadScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true);
 
         app.MapPut("/internal/auth/current-tenant", (
             SwitchTenantRequest request,
@@ -38,7 +47,10 @@ internal static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             return authService.SwitchTenantAsync(request, cancellationToken);
-        }).RequireAuthorization(SekaiAuthorizationPolicies.LoggedIn);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.AuthTenantSwitchScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true);
 
         app.MapPost("/internal/users/invitations", (
             InvitationRequest request,
@@ -46,7 +58,11 @@ internal static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             return authService.InviteUserAsync(request, cancellationToken);
-        }).RequireAuthorization(SekaiAuthorizationPolicies.TenantSelected);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.UsersInvitationsWriteScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true,
+            requireTenant: true);
 
         return app;
     }

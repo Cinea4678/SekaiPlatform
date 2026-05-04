@@ -118,7 +118,7 @@ Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索
 
 统一索引名默认为 `sekai-language-assets-v1`。文档 ID 使用稳定前缀区分资产类型：原文为 `source:{source_line_id}`，译文为 `translation:{translation_line_id}`。索引字段至少包括 `asset_type`、`tenant_id`、`story_id`、`story_type`、`scenario_id`、`story_title`、`story_group_id`、`story_group_title`、`translation_version_id`、`source_line_id`、`line_no`、`speaker` 和 `text`。
 
-Search Service 提供内部索引维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围从 PostgreSQL 重建索引。该接口属于服务间维护接口，必须携带内部维护 token，不作为一期前端公开 API；Phase 6 的 `/api/search` 只读取该索引。
+Search Service 提供内部索引维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围从 PostgreSQL 重建索引。该接口属于系统内部接口，按 @security-model.md 使用内部 token 授权，不作为一期前端公开 API；Phase 6 的 `/api/search` 只读取该索引。
 
 分词组件：
 
@@ -162,6 +162,9 @@ Search Service 提供内部索引维护接口 `POST /internal/search/index/rebui
 - 内部服务之间使用 HTTP REST 同步调用。
 - Docker Compose 下使用服务名作为内部网络地址。
 - 通过 ASP.NET Core 的配置、健康检查、日志和依赖注入管理服务连接。
+- 服务间调用统一使用 @security-model.md 定义的内部 token。内部 token 使用非对称签名，并携带调用方、目标服务、授权范围和可选用户租户上下文。
+- 外部用户 JWT 只用于前端到 API Service 的外部身份边界。API Service 验证外部用户 JWT 后，将用户上下文转换为面向目标服务的内部 token。
+- 内部服务不得把外部用户 JWT、`X-Sekai-User-Id`、`X-Sekai-Tenant-Id` 或长期共享明文 secret 作为新的服务间授权模型。
 
 ## 日志和追踪设计
 
@@ -183,22 +186,19 @@ Search Service 提供内部索引维护接口 `POST /internal/search/index/rebui
 - ASP.NET Core logging 启用 `ActivityTrackingOptions.TraceId`、`SpanId`、`ParentId`。
 - 同一次外部请求跨多个服务时，`TraceId` 保持一致，`SpanId` 表示每个服务内的当前调用片段。
 
-上下文 Header：
+追踪 Header：
 
 | Header | 说明 |
 |---|---|
 | `traceparent` | W3C Trace Context 标准 Header。 |
 | `X-Sekai-Trace-Id` | 平台可读追踪 ID，用于错误响应和人工排障。 |
-| `X-Sekai-User-Id` | 当前用户 ID，由 API Service 传递给内部服务。 |
-| `X-Sekai-Tenant-Id` | 当前租户 ID，由 API Service 传递给内部服务。 |
 
-Header 信任边界：
+上下文 Header 约束：
 
 - 外部入口不得信任客户端传入的 `X-Sekai-User-Id`、`X-Sekai-Tenant-Id`。
-- API Service 必须基于已验证登录状态覆盖或剥离客户端自带的同名上下文 Header。
-- 只有 API Service 到内部服务的受控链路可以写入用户和租户上下文 Header。
-- 内部服务读取这些 Header 仅作为服务间上下文传递结果，不能将其作为绕过鉴权的独立依据。
-- 如果内部服务未来暴露到公网、跨网络边界或绕过 API Service 访问，必须补充服务间认证或网关隔离。
+- API Service 必须剥离客户端自带的同名上下文 Header。
+- `X-Sekai-User-Id` 和 `X-Sekai-Tenant-Id` 不作为鉴权或授权输入；如迁移期保留，只能作为日志兼容字段。
+- 用户 ID、租户 ID、调用方身份和授权范围必须来自已验证的内部 token claims，并由内部服务继续执行领域授权。
 
 ## API 文档
 
@@ -302,6 +302,14 @@ Sync Worker -------- External Data Source
 
 QQ OAuth 作为后续主要登录方式保留设计，不在一期实现。
 
+平台采用统一安全模型，详见 @security-model.md：
+
+- 外部用户 token 只用于前端到 API Service 的登录态。
+- 内部服务调用只接受内部 token。
+- 内部 token 使用非对称签名，目标服务只持有验证公钥。
+- 内部 endpoint 必须归类为用户代理内部接口、系统内部接口或健康检查，并绑定明确 scope。
+- `X-Sekai-Maintenance-Token` 属于旧维护凭证，内部服务不再使用。
+
 ## 数据隔离
 
 平台采用“共享原文、租户隔离译文”的模型：
@@ -351,3 +359,4 @@ Vue 前端规划中，预期后续套在 API Service 入口下统一对外提供
 - 数据模型设计文档：@data-model.md
 - 外部数据源设计文档：@external-api.md
 - Moe Sekai 对接设计文档：@external-api-moe.md
+- 安全模型文档：@security-model.md

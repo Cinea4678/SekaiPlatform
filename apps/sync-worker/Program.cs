@@ -6,6 +6,7 @@ using SekaiPlatform.SyncWorker;
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.AddMoeSekaiSourceSync(builder.Configuration);
+builder.Services.AddSekaiPlatformInternalTokenIssuer(builder.Configuration, requirePrivateKey: true);
 builder.Services.AddSekaiPlatformSearchIndexRefreshClient(builder.Configuration);
 builder.Services.AddHostedService<Worker>();
 

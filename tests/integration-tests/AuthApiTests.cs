@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SekaiPlatform.Database;
+using SekaiPlatform.Shared.Web;
 using AuthServiceProgram = AuthService::Program;
 
 namespace SekaiPlatform.IntegrationTests;
@@ -313,6 +314,39 @@ public sealed class AuthApiTests : IDisposable
     }
 
     /// <summary>
+    /// Ensures Auth Service internal endpoints reject requests without an internal token.
+    /// </summary>
+    [Fact]
+    public async Task InternalSession_WithoutInternalToken_ReturnsUnauthorized()
+    {
+        using var client = authFactory.CreateClient();
+
+        using var response = await client.GetAsync("/internal/auth/session");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Ensures user-proxy Auth Service endpoints require a delegated subject user.
+    /// </summary>
+    [Fact]
+    public async Task InternalSession_WithoutSubjectClaim_ReturnsForbidden()
+    {
+        using var client = authFactory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/internal/auth/session");
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.AuthServiceActor,
+                SekaiInternalAuthDefaults.AuthSessionReadScope));
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
     /// Disposes in-memory service hosts created for the test case.
     /// </summary>
     public void Dispose()
@@ -402,7 +436,9 @@ public sealed class AuthApiTests : IDisposable
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+                configuration.AddInMemoryCollection(CreateConfiguration(
+                    connectionString,
+                    SekaiInternalAuthDefaults.AuthServiceActor));
             });
         }
     }
@@ -421,7 +457,10 @@ public sealed class AuthApiTests : IDisposable
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+                configuration.AddInMemoryCollection(CreateConfiguration(
+                    connectionString,
+                    SekaiInternalAuthDefaults.ApiServiceActor,
+                    includePrivateKey: true));
             });
 
             builder.ConfigureTestServices(services =>
@@ -435,9 +474,12 @@ public sealed class AuthApiTests : IDisposable
     /// <summary>
     /// Creates shared service configuration used by the API and Auth test hosts.
     /// </summary>
-    private static Dictionary<string, string?> CreateConfiguration(string connectionString)
+    private static Dictionary<string, string?> CreateConfiguration(
+        string connectionString,
+        string actor,
+        bool includePrivateKey = false)
     {
-        return new Dictionary<string, string?>
+        var configuration = new Dictionary<string, string?>
         {
             ["ConnectionStrings:Postgres"] = connectionString,
             ["InternalServices:AuthService"] = "http://auth-service",
@@ -449,5 +491,7 @@ public sealed class AuthApiTests : IDisposable
             ["Database:AutoMigrate"] = "false",
             ["Database:Seed"] = "false"
         };
+        IntegrationTestInternalAuth.AddConfiguration(configuration, actor, includePrivateKey);
+        return configuration;
     }
 }

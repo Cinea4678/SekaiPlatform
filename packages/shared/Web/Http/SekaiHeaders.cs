@@ -20,8 +20,4 @@ public static class SekaiHeaders
     /// </summary>
     public const string TenantId = "X-Sekai-Tenant-Id";
 
-    /// <summary>
-    /// Header carrying the configured internal maintenance token for protected service operations.
-    /// </summary>
-    public const string MaintenanceToken = "X-Sekai-Maintenance-Token";
 }

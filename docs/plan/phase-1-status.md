@@ -29,8 +29,9 @@ Phase 1：共享约定已完成。
   - `GET /api/internal-services/health`
 - 服务间 HTTP 调用约定：
   - 使用 named `HttpClient`。
-  - 自动透传 `X-Sekai-Trace-Id`、`X-Sekai-User-Id`、`X-Sekai-Tenant-Id`。
+  - 自动透传 `X-Sekai-Trace-Id`。
   - 依赖 .NET Activity 传播标准 W3C `traceparent`。
+- 当前内部用户和租户上下文已收敛到 `docs/design/security-model.md` 定义的内部 token claims，不再通过 `X-Sekai-User-Id`、`X-Sekai-Tenant-Id` 传递授权上下文。
 - Header 信任边界已记录到 `docs/design/index.md`：
   - 外部入口不信任客户端传入的用户和租户上下文 Header。
   - API Service 负责基于已验证登录状态覆盖或剥离同名 Header。

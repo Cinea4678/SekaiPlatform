@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 namespace SekaiPlatform.Shared.Web;
 
 /// <summary>
-/// Reads request context from the current HTTP request, claims, and trusted internal headers.
+/// Reads request context from the current HTTP request and validated token claims.
 /// </summary>
 /// <param name="httpContextAccessor">The ASP.NET Core HTTP context accessor.</param>
 public sealed class HttpCurrentRequestContextAccessor(IHttpContextAccessor httpContextAccessor)
@@ -44,23 +44,22 @@ public sealed class HttpCurrentRequestContextAccessor(IHttpContextAccessor httpC
     }
 
     /// <summary>
-    /// Resolves the platform user identifier from claims before internal headers.
+    /// Resolves the platform user identifier from validated token claims.
     /// </summary>
     private static long? GetUserId(HttpContext? httpContext)
     {
         return GetLongClaim(httpContext?.User, SekaiAuthDefaults.UserIdClaimType)
+            ?? GetLongClaim(httpContext?.User, SekaiInternalAuthDefaults.SubjectUserIdClaimType)
             ?? GetLongClaim(httpContext?.User, ClaimTypes.NameIdentifier)
-            ?? GetLongClaim(httpContext?.User, "sub")
-            ?? GetLongHeader(httpContext, SekaiHeaders.UserId);
+            ?? GetLongClaim(httpContext?.User, "sub");
     }
 
     /// <summary>
-    /// Resolves the selected tenant identifier from claims before internal headers.
+    /// Resolves the selected tenant identifier from validated token claims.
     /// </summary>
     private static long? GetTenantId(HttpContext? httpContext)
     {
-        return GetLongClaim(httpContext?.User, SekaiAuthDefaults.TenantIdClaimType)
-            ?? GetLongHeader(httpContext, SekaiHeaders.TenantId);
+        return GetLongClaim(httpContext?.User, SekaiAuthDefaults.TenantIdClaimType);
     }
 
     /// <summary>
@@ -70,19 +69,6 @@ public sealed class HttpCurrentRequestContextAccessor(IHttpContextAccessor httpC
     {
         var value = user?.FindFirstValue(claimType);
         return ParseLong(value);
-    }
-
-    /// <summary>
-    /// Reads and parses a numeric request header value.
-    /// </summary>
-    private static long? GetLongHeader(HttpContext? httpContext, string headerName)
-    {
-        if (httpContext?.Request.Headers.TryGetValue(headerName, out var value) != true)
-        {
-            return null;
-        }
-
-        return ParseLong(value.ToString());
     }
 
     /// <summary>

@@ -114,7 +114,9 @@ Sync Worker 会每天自动执行一次原文同步，默认本地时间 `04:00`
 
 Phase 5 已实现 Elasticsearch 统一索引 `sekai-language-assets-v1`。Docker Compose 使用 `deploy/elasticsearch/Dockerfile` 构建 Elasticsearch 8.15.3，并安装 `analysis-smartcn`、`analysis-kuromoji` 和 `analysis-icu`。
 
-Search Service 提供内部维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围重建索引。该接口不通过 API Service 对外暴露，调用方必须携带 `X-Sekai-Maintenance-Token`，本地令牌由 `SEARCH_INDEX_MAINTENANCE_TOKEN` 配置。
+Search Service 提供内部维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围重建索引。该接口不通过 API Service 对外暴露，调用方必须携带非对称签名的内部 token；安全模型见 [安全模型](docs/design/security-model.md)。
+
+内部 token 的签发私钥不放在仓库配置中。Docker Compose 本地启动前需要通过 `.env` 注入 `API_SERVICE_INTERNAL_PRIVATE_KEY`、`ASSET_SERVICE_INTERNAL_PRIVATE_KEY`、`SYNC_WORKER_INTERNAL_PRIVATE_KEY` 及对应 public key；生产环境必须使用部署平台的 secret 管理机制注入并轮换。
 
 如果 Apple Silicon / M 系列机器上 Elasticsearch 因 JVM `SIGILL` 退出，可在 `.env` 中改为：
 

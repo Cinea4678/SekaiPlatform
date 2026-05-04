@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace SekaiPlatform.Shared.Web;
@@ -24,8 +26,12 @@ public static class SekaiWebApplicationBuilderExtensions
     /// Adds shared logging, request context, health checks, authentication, and authorization defaults.
     /// </summary>
     /// <param name="builder">The web application builder to configure.</param>
+    /// <param name="authenticationMode">The token model used by this web service.</param>
     /// <returns>The same builder for chaining.</returns>
-    public static WebApplicationBuilder AddSekaiPlatformWebDefaults(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddSekaiPlatformWebDefaults(
+        this WebApplicationBuilder builder,
+        SekaiAuthenticationMode authenticationMode = SekaiAuthenticationMode.ExternalJwt,
+        bool requireInternalTokenIssuer = false)
     {
         builder.Logging.Configure(options =>
         {
@@ -46,21 +52,21 @@ public static class SekaiWebApplicationBuilderExtensions
         builder.Services.AddScoped<ICurrentRequestContextAccessor, HttpCurrentRequestContextAccessor>();
         builder.Services.AddTransient<SekaiContextPropagationHandler>();
         builder.Services.AddHealthChecks();
-
-        var jwtOptions = builder.Configuration
-            .GetSection(SekaiJwtOptions.SectionName)
-            .Get<SekaiJwtOptions>() ?? new SekaiJwtOptions();
-        ValidateJwtOptions(jwtOptions);
         builder.Services.Configure<SekaiJwtOptions>(
             builder.Configuration.GetSection(SekaiJwtOptions.SectionName));
+        builder.Services.AddSekaiPlatformInternalTokenIssuer(
+            builder.Configuration,
+            requirePrivateKey: requireInternalTokenIssuer);
 
-        builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = CreateTokenValidationParameters(jwtOptions);
-                options.Events = CreateJwtBearerEvents();
-            });
+        if (authenticationMode == SekaiAuthenticationMode.ExternalJwt)
+        {
+            AddExternalJwtAuthentication(builder);
+        }
+        else
+        {
+            AddInternalTokenAuthentication(builder);
+        }
+
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(
@@ -77,6 +83,33 @@ public static class SekaiWebApplicationBuilderExtensions
         });
 
         return builder;
+    }
+
+    /// <summary>
+    /// Adds the internal token issuer used by services that call other internal services.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration containing internal auth settings.</param>
+    /// <returns>The same service collection for chaining.</returns>
+    public static IServiceCollection AddSekaiPlatformInternalTokenIssuer(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool requirePrivateKey = false)
+    {
+        var options = services
+            .AddOptions<SekaiInternalAuthOptions>()
+            .Bind(configuration.GetSection(SekaiInternalAuthOptions.SectionName));
+        if (requirePrivateKey)
+        {
+            options
+                .Validate(
+                    HasValidInternalTokenIssuerOptions,
+                    "Invalid internal token issuer configuration.")
+                .ValidateOnStart();
+        }
+
+        services.AddSingleton<SekaiInternalTokenIssuer>();
+        return services;
     }
 
     /// <summary>
@@ -120,14 +153,13 @@ public static class SekaiWebApplicationBuilderExtensions
             throw new InvalidOperationException("Missing InternalServices:SearchService configuration.");
         }
 
-        services.Configure<SearchIndexMaintenanceOptions>(
-            configuration.GetSection(SearchIndexMaintenanceOptions.SectionName));
-
-        return services.AddHttpClient<SearchIndexRefreshClient>(client =>
-        {
-            client.BaseAddress = new Uri(baseAddress);
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
+        return services
+            .AddHttpClient<SearchIndexRefreshClient>(client =>
+            {
+                client.BaseAddress = new Uri(baseAddress);
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<SekaiContextPropagationHandler>();
     }
 
     /// <summary>
@@ -184,10 +216,48 @@ public static class SekaiWebApplicationBuilderExtensions
         return app;
     }
 
+    private static void AddExternalJwtAuthentication(WebApplicationBuilder builder)
+    {
+        var jwtOptions = builder.Configuration
+            .GetSection(SekaiJwtOptions.SectionName)
+            .Get<SekaiJwtOptions>() ?? new SekaiJwtOptions();
+        ValidateJwtOptions(jwtOptions);
+
+        builder.Services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters = CreateExternalTokenValidationParameters(jwtOptions);
+                options.Events = CreateExternalJwtBearerEvents();
+            });
+    }
+
+    private static void AddInternalTokenAuthentication(WebApplicationBuilder builder)
+    {
+        builder.Services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.MapInboundClaims = false;
+                options.Events = CreateInternalJwtBearerEvents();
+            });
+        builder.Services.Configure<JwtBearerOptions>(
+            JwtBearerDefaults.AuthenticationScheme,
+            options =>
+            {
+                var internalOptions = builder.Configuration
+                    .GetSection(SekaiInternalAuthOptions.SectionName)
+                    .Get<SekaiInternalAuthOptions>() ?? new SekaiInternalAuthOptions();
+                ValidateInternalAuthOptions(internalOptions);
+                options.TokenValidationParameters = CreateInternalTokenValidationParameters(internalOptions);
+            });
+    }
+
     /// <summary>
-    /// Creates token validation parameters from the configured JWT options.
+    /// Creates token validation parameters from the configured external JWT options.
     /// </summary>
-    private static TokenValidationParameters CreateTokenValidationParameters(SekaiJwtOptions options)
+    private static TokenValidationParameters CreateExternalTokenValidationParameters(SekaiJwtOptions options)
     {
         var signingKey = Encoding.UTF8.GetBytes(options.SigningKey);
 
@@ -202,6 +272,59 @@ public static class SekaiWebApplicationBuilderExtensions
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+    }
+
+    /// <summary>
+    /// Creates token validation parameters from the configured internal token options.
+    /// </summary>
+    private static TokenValidationParameters CreateInternalTokenValidationParameters(SekaiInternalAuthOptions options)
+    {
+        return new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = options.Issuer,
+            ValidateAudience = true,
+            ValidAudience = options.Actor,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKeyResolver = CreateInternalSigningKeyResolver(options),
+            TryAllIssuerSigningKeys = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    }
+
+    private static IssuerSigningKeyResolver CreateInternalSigningKeyResolver(SekaiInternalAuthOptions options)
+    {
+        var signingKeys = CreateInternalSigningKeys(options);
+        return (_, _, keyId, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                return [];
+            }
+
+            return signingKeys.TryGetValue(keyId, out var key)
+                ? [key]
+                : [];
+        };
+    }
+
+    private static IReadOnlyDictionary<string, SecurityKey> CreateInternalSigningKeys(SekaiInternalAuthOptions options)
+    {
+        var signingKeys = new Dictionary<string, SecurityKey>(StringComparer.Ordinal);
+        foreach (var (actor, publicKey) in options.PublicKeys)
+        {
+            if (string.IsNullOrWhiteSpace(publicKey))
+            {
+                continue;
+            }
+
+            var rsa = RSA.Create();
+            rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
+            signingKeys[actor] = new RsaSecurityKey(rsa) { KeyId = actor };
+        }
+
+        return signingKeys;
     }
 
     /// <summary>
@@ -238,9 +361,116 @@ public static class SekaiWebApplicationBuilderExtensions
     }
 
     /// <summary>
-    /// Creates JWT bearer events that read auth cookies and return standard error payloads.
+    /// Validates internal token settings required by internal services.
     /// </summary>
-    private static JwtBearerEvents CreateJwtBearerEvents()
+    private static void ValidateInternalAuthOptions(SekaiInternalAuthOptions options)
+    {
+        var errors = new List<string>();
+
+        ValidateInternalAuthIdentity(options, errors);
+        ValidateInternalPublicKeys(options, errors);
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Invalid internal auth configuration: " + string.Join(" ", errors));
+        }
+    }
+
+    private static void ValidateInternalTokenIssuerOptions(
+        SekaiInternalAuthOptions options,
+        bool requirePrivateKey)
+    {
+        if (!requirePrivateKey)
+        {
+            return;
+        }
+
+        var errors = new List<string>();
+        ValidateInternalAuthIdentity(options, errors);
+
+        if (string.IsNullOrWhiteSpace(options.PrivateKeyPkcs8))
+        {
+            errors.Add("InternalAuth:PrivateKeyPkcs8 must be configured for services that issue internal tokens.");
+        }
+        else
+        {
+            try
+            {
+                using var rsa = RSA.Create();
+                rsa.ImportPkcs8PrivateKey(Convert.FromBase64String(options.PrivateKeyPkcs8), out _);
+            }
+            catch (Exception exception) when (exception is FormatException or CryptographicException)
+            {
+                errors.Add("InternalAuth:PrivateKeyPkcs8 must be a base64 PKCS#8 RSA private key.");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Invalid internal token issuer configuration: " + string.Join(" ", errors));
+        }
+    }
+
+    private static bool HasValidInternalTokenIssuerOptions(SekaiInternalAuthOptions options)
+    {
+        try
+        {
+            ValidateInternalTokenIssuerOptions(options, requirePrivateKey: true);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static void ValidateInternalAuthIdentity(SekaiInternalAuthOptions options, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(options.Issuer))
+        {
+            errors.Add("InternalAuth:Issuer must be configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Actor))
+        {
+            errors.Add("InternalAuth:Actor must be configured.");
+        }
+    }
+
+    private static void ValidateInternalPublicKeys(SekaiInternalAuthOptions options, List<string> errors)
+    {
+        var validPublicKeyCount = 0;
+        foreach (var (actor, publicKey) in options.PublicKeys)
+        {
+            if (string.IsNullOrWhiteSpace(publicKey))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var rsa = RSA.Create();
+                rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
+                validPublicKeyCount++;
+            }
+            catch (Exception exception) when (exception is FormatException or CryptographicException)
+            {
+                errors.Add($"InternalAuth:PublicKeys:{actor} must be a base64 SubjectPublicKeyInfo RSA public key.");
+            }
+        }
+
+        if (validPublicKeyCount == 0)
+        {
+            errors.Add("InternalAuth:PublicKeys must contain at least one actor public key.");
+        }
+    }
+
+    /// <summary>
+    /// Creates external JWT bearer events that read auth cookies and return standard error payloads.
+    /// </summary>
+    private static JwtBearerEvents CreateExternalJwtBearerEvents()
     {
         return new JwtBearerEvents
         {
@@ -250,6 +480,44 @@ public static class SekaiWebApplicationBuilderExtensions
                     && context.Request.Cookies.TryGetValue(SekaiAuthDefaults.AuthenticationCookieName, out var token))
                 {
                     context.Token = token;
+                }
+
+                return Task.CompletedTask;
+            },
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                await WriteAuthenticationErrorAsync(
+                    context.HttpContext,
+                    StatusCodes.Status401Unauthorized,
+                    "Unauthorized.");
+            },
+            OnForbidden = context =>
+            {
+                return WriteAuthenticationErrorAsync(
+                    context.HttpContext,
+                    StatusCodes.Status403Forbidden,
+                    "Forbidden.");
+            }
+        };
+    }
+
+    /// <summary>
+    /// Creates internal JWT bearer events that verify actor and signing key identity.
+    /// </summary>
+    private static JwtBearerEvents CreateInternalJwtBearerEvents()
+    {
+        return new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                var actor = context.Principal?.FindClaimValue(SekaiInternalAuthDefaults.ActorClaimType);
+                var keyId = context.SecurityToken.SigningKey?.KeyId;
+                if (string.IsNullOrWhiteSpace(actor)
+                    || string.IsNullOrWhiteSpace(keyId)
+                    || !string.Equals(actor, keyId, StringComparison.Ordinal))
+                {
+                    context.Fail("Internal token actor does not match signing key.");
                 }
 
                 return Task.CompletedTask;

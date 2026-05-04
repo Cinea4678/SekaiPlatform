@@ -23,8 +23,6 @@ namespace SekaiPlatform.IntegrationTests;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
 {
-    private const string MaintenanceToken = "integration-search-index-token";
-
     /// <summary>
     /// Rebuilds source documents without tenant ownership and includes story navigation fields.
     /// </summary>
@@ -173,10 +171,10 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
     }
 
     /// <summary>
-    /// Requires the internal maintenance token before mutating search index documents.
+    /// Requires an internal token before mutating search index documents.
     /// </summary>
     [Fact]
-    public async Task Rebuild_WithoutMaintenanceToken_ReturnsForbidden()
+    public async Task Rebuild_WithoutInternalToken_ReturnsUnauthorized()
     {
         var elasticsearch = new FakeElasticsearchHandler();
         await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
@@ -187,7 +185,62 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             scope = "source"
         });
 
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Empty(elasticsearch.DeleteByQueryBodies);
+    }
+
+    /// <summary>
+    /// Rejects internal tokens from actors that cannot rebuild the search index.
+    /// </summary>
+    [Fact]
+    public async Task Rebuild_WithUnauthorizedActor_ReturnsForbidden()
+    {
+        var elasticsearch = new FakeElasticsearchHandler();
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/internal/search/index/rebuild")
+        {
+            Content = JsonContent.Create(new { scope = "source" })
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
+
+        using var response = await client.SendAsync(request);
+
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(elasticsearch.DeleteByQueryBodies);
+    }
+
+    /// <summary>
+    /// Rejects tokens whose actor claim does not match the signing key identity.
+    /// </summary>
+    [Fact]
+    public async Task Rebuild_WithActorClaimSignedByDifferentKey_ReturnsUnauthorized()
+    {
+        var elasticsearch = new FakeElasticsearchHandler();
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/internal/search/index/rebuild")
+        {
+            Content = JsonContent.Create(new { scope = "source" })
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.IssueWithSigningActor(
+                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.AssetServiceActor,
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Empty(elasticsearch.DeleteByQueryBodies);
     }
 
@@ -303,17 +356,18 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                var values = new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:Postgres"] = connectionString,
                     ["Elasticsearch:Url"] = "http://elasticsearch.test",
                     ["Elasticsearch:IndexName"] = "sekai-language-assets-test",
                     ["Elasticsearch:BulkBatchSize"] = "1000",
-                    ["SearchIndex:MaintenanceToken"] = MaintenanceToken,
                     ["Jwt:Issuer"] = "sekai-platform",
                     ["Jwt:Audience"] = "sekai-platform",
                     ["Jwt:SigningKey"] = "replace-with-local-development-signing-key"
-                });
+                };
+                IntegrationTestInternalAuth.AddConfiguration(values, SekaiInternalAuthDefaults.SearchServiceActor);
+                configuration.AddInMemoryCollection(values);
             });
 
             builder.ConfigureTestServices(services =>
@@ -451,7 +505,12 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
         {
             Content = JsonContent.Create(body)
         };
-        request.Headers.Add(SekaiHeaders.MaintenanceToken, MaintenanceToken);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.AssetServiceActor,
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
         return client.SendAsync(request);
     }
 }

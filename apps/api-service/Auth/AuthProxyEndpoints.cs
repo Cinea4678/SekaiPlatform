@@ -16,15 +16,18 @@ internal static class AuthProxyEndpoints
         app.MapPost("/api/auth/login", async Task<IResult> (
             LoginRequest request,
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAuthServiceAsync(
                 httpClientFactory,
-                httpContext,
+                internalTokenIssuer,
                 HttpMethod.Post,
                 "/internal/auth/login",
+                SekaiInternalAuthDefaults.AuthLoginScope,
                 request,
+                requestContext: null,
                 cancellationToken);
 
             return await ForwardAuthResponseAsync(response, httpContext, setAuthenticationCookie: true, cancellationToken);
@@ -38,15 +41,19 @@ internal static class AuthProxyEndpoints
 
         app.MapGet("/api/auth/session", async Task<IResult> (
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAuthServiceAsync(
                 httpClientFactory,
-                httpContext,
+                internalTokenIssuer,
                 HttpMethod.Get,
                 "/internal/auth/session",
+                SekaiInternalAuthDefaults.AuthSessionReadScope,
                 body: null,
+                contextAccessor.GetCurrent(),
                 cancellationToken);
 
             return await ForwardAuthResponseAsync(response, httpContext, setAuthenticationCookie: false, cancellationToken);
@@ -54,15 +61,19 @@ internal static class AuthProxyEndpoints
 
         app.MapGet("/api/auth/tenants", async Task<IResult> (
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAuthServiceAsync(
                 httpClientFactory,
-                httpContext,
+                internalTokenIssuer,
                 HttpMethod.Get,
                 "/internal/auth/tenants",
+                SekaiInternalAuthDefaults.AuthTenantsReadScope,
                 body: null,
+                contextAccessor.GetCurrent(),
                 cancellationToken);
 
             return await ForwardAuthResponseAsync(response, httpContext, setAuthenticationCookie: false, cancellationToken);
@@ -71,15 +82,19 @@ internal static class AuthProxyEndpoints
         app.MapPut("/api/auth/current-tenant", async Task<IResult> (
             SwitchTenantRequest request,
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAuthServiceAsync(
                 httpClientFactory,
-                httpContext,
+                internalTokenIssuer,
                 HttpMethod.Put,
                 "/internal/auth/current-tenant",
+                SekaiInternalAuthDefaults.AuthTenantSwitchScope,
                 request,
+                contextAccessor.GetCurrent(),
                 cancellationToken);
 
             return await ForwardAuthResponseAsync(response, httpContext, setAuthenticationCookie: true, cancellationToken);
@@ -88,15 +103,19 @@ internal static class AuthProxyEndpoints
         app.MapPost("/api/users/invitations", async Task<IResult> (
             InvitationRequest request,
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAuthServiceAsync(
                 httpClientFactory,
-                httpContext,
+                internalTokenIssuer,
                 HttpMethod.Post,
                 "/internal/users/invitations",
+                SekaiInternalAuthDefaults.UsersInvitationsWriteScope,
                 request,
+                contextAccessor.GetCurrent(),
                 cancellationToken);
 
             return await ForwardAuthResponseAsync(response, httpContext, setAuthenticationCookie: false, cancellationToken);
@@ -106,14 +125,16 @@ internal static class AuthProxyEndpoints
     }
 
     /// <summary>
-    /// Sends a request to Auth Service while preserving bearer authentication from headers or cookies.
+    /// Sends a request to Auth Service with a scoped internal token.
     /// </summary>
     private static async Task<HttpResponseMessage> SendAuthServiceAsync(
         IHttpClientFactory httpClientFactory,
-        HttpContext httpContext,
+        SekaiInternalTokenIssuer internalTokenIssuer,
         HttpMethod method,
         string path,
+        string scope,
         object? body,
+        CurrentRequestContext? requestContext,
         CancellationToken cancellationToken)
     {
         var request = new HttpRequestMessage(method, path);
@@ -122,16 +143,13 @@ internal static class AuthProxyEndpoints
             request.Content = JsonContent.Create(body);
         }
 
-        if (httpContext.Request.Headers.TryGetValue("Authorization", out var authorization)
-            && AuthenticationHeaderValue.TryParse(authorization.ToString(), out var header))
-        {
-            request.Headers.Authorization = header;
-        }
-        else if (httpContext.Request.Cookies.TryGetValue(SekaiAuthDefaults.AuthenticationCookieName, out var token)
-            && !string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            internalTokenIssuer.Issue(
+                SekaiInternalAuthDefaults.AuthServiceActor,
+                scope,
+                requestContext?.UserId,
+                requestContext?.TenantId));
 
         return await httpClientFactory
             .CreateClient("auth-service")

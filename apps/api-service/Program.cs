@@ -4,7 +4,7 @@ using SekaiPlatform.Shared.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddSekaiPlatformWebDefaults();
+builder.AddSekaiPlatformWebDefaults(requireInternalTokenIssuer: true);
 builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.AddSekaiPlatformInternalHttpClient("auth-service", builder.Configuration, "AuthService");
 builder.Services.AddSekaiPlatformInternalHttpClient("asset-service", builder.Configuration, "AssetService");

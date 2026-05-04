@@ -54,7 +54,11 @@ internal static class SyncEndpoints
             await RefreshStoryIndexesAsync(result, searchIndexRefreshClient, logger, CancellationToken.None);
 
             return Results.Json(SyncEndpointResults.ToResponse(result.Job));
-        }).RequireAuthorization(SekaiAuthorizationPolicies.TenantSelected);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.SyncJobsWriteScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true,
+            requireTenant: true);
 
         app.MapGet("/internal/sync/jobs", async Task<IResult> (
             int? limit,
@@ -74,7 +78,11 @@ internal static class SyncEndpoints
                 .ToArrayAsync(cancellationToken);
 
             return Results.Json(jobs.Select(SyncEndpointResults.ToResponse).ToArray());
-        }).RequireAuthorization(SekaiAuthorizationPolicies.TenantSelected);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.SyncJobsReadScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true,
+            requireTenant: true);
 
         app.MapGet("/internal/sync/jobs/{syncJobId:long}", async Task<IResult> (
             long syncJobId,
@@ -91,7 +99,11 @@ internal static class SyncEndpoints
             return job is null
                 ? SyncEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Sync job not found.")
                 : Results.Json(SyncEndpointResults.ToResponse(job));
-        }).RequireAuthorization(SekaiAuthorizationPolicies.TenantSelected);
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.SyncJobsReadScope,
+            [SekaiInternalAuthDefaults.ApiServiceActor],
+            requireSubject: true,
+            requireTenant: true);
 
         return app;
     }

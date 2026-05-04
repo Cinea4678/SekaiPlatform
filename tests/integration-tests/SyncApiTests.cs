@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -26,8 +27,6 @@ namespace SekaiPlatform.IntegrationTests;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SyncApiTests : IDisposable
 {
-    private const string MaintenanceToken = "integration-search-index-token";
-
     private readonly IntegrationTestDatabaseFixture fixture;
     private readonly AuthServiceFactory authFactory;
     private readonly AssetServiceFactory assetFactory;
@@ -79,7 +78,7 @@ public sealed class SyncApiTests : IDisposable
         Assert.Equal(SourceSyncConstants.EventStory, story.StoryType);
         Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(item => item.StoryId == story.Id));
         AssertStoryRefreshRequested(searchIndexHandler, story.Id);
-        Assert.All(searchIndexHandler.MaintenanceTokens, token => Assert.Equal(MaintenanceToken, token));
+        Assert.All(searchIndexHandler.InternalTokens, AssertSearchIndexRefreshToken);
 
         using var list = await SendWithBearerAsync(client, HttpMethod.Get, "/api/sync/jobs?limit=1", login.Token);
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
@@ -188,6 +187,40 @@ public sealed class SyncApiTests : IDisposable
     }
 
     /// <summary>
+    /// Ensures Asset Service internal sync endpoints reject requests without an internal token.
+    /// </summary>
+    [Fact]
+    public async Task InternalSyncJobs_WithoutInternalToken_ReturnsUnauthorized()
+    {
+        using var client = assetFactory.CreateClient();
+
+        using var response = await client.GetAsync("/internal/sync/jobs");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Ensures tenant-scoped Asset Service endpoints require a delegated tenant claim.
+    /// </summary>
+    [Fact]
+    public async Task InternalSyncJobs_WithoutTenantClaim_ReturnsForbidden()
+    {
+        using var client = assetFactory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/internal/sync/jobs");
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.AssetServiceActor,
+                SekaiInternalAuthDefaults.SyncJobsReadScope,
+                subjectUserId: 1));
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
     /// Disposes API, Asset, and Auth hosts created for the test case.
     /// </summary>
     public void Dispose()
@@ -281,7 +314,9 @@ public sealed class SyncApiTests : IDisposable
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+                configuration.AddInMemoryCollection(CreateConfiguration(
+                    connectionString,
+                    SekaiInternalAuthDefaults.AuthServiceActor));
             });
         }
     }
@@ -301,7 +336,10 @@ public sealed class SyncApiTests : IDisposable
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+                configuration.AddInMemoryCollection(CreateConfiguration(
+                    connectionString,
+                    SekaiInternalAuthDefaults.AssetServiceActor,
+                    includePrivateKey: true));
             });
 
             builder.ConfigureTestServices(services =>
@@ -327,9 +365,9 @@ public sealed class SyncApiTests : IDisposable
         public List<string> RebuildBodies { get; } = [];
 
         /// <summary>
-        /// Gets captured maintenance tokens sent by Asset Service.
+        /// Gets captured internal bearer tokens sent by Asset Service.
         /// </summary>
-        public List<string?> MaintenanceTokens { get; } = [];
+        public List<string?> InternalTokens { get; } = [];
 
         /// <summary>
         /// Records rebuild requests and returns a successful maintenance response.
@@ -340,9 +378,7 @@ public sealed class SyncApiTests : IDisposable
         {
             if (request.RequestUri?.AbsolutePath == "/internal/search/index/rebuild")
             {
-                MaintenanceTokens.Add(request.Headers.TryGetValues(SekaiHeaders.MaintenanceToken, out var values)
-                    ? values.Single()
-                    : null);
+                InternalTokens.Add(request.Headers.Authorization?.Parameter);
                 RebuildBodies.Add(request.Content is null
                     ? ""
                     : await request.Content.ReadAsStringAsync(cancellationToken));
@@ -374,7 +410,10 @@ public sealed class SyncApiTests : IDisposable
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(CreateConfiguration(connectionString));
+                configuration.AddInMemoryCollection(CreateConfiguration(
+                    connectionString,
+                    SekaiInternalAuthDefaults.ApiServiceActor,
+                    includePrivateKey: true));
             });
 
             builder.ConfigureTestServices(services =>
@@ -507,20 +546,35 @@ public sealed class SyncApiTests : IDisposable
     /// <summary>
     /// Creates shared service configuration used by API, Auth, and Asset test hosts.
     /// </summary>
-    private static Dictionary<string, string?> CreateConfiguration(string connectionString)
+    private static Dictionary<string, string?> CreateConfiguration(
+        string connectionString,
+        string actor,
+        bool includePrivateKey = false)
     {
-        return new Dictionary<string, string?>
+        var configuration = new Dictionary<string, string?>
         {
             ["ConnectionStrings:Postgres"] = connectionString,
             ["InternalServices:AuthService"] = "http://auth-service",
             ["InternalServices:AssetService"] = "http://asset-service",
             ["InternalServices:SearchService"] = "http://search-service",
-            ["SearchIndex:MaintenanceToken"] = MaintenanceToken,
             ["Jwt:Issuer"] = "sekai-platform",
             ["Jwt:Audience"] = "sekai-platform",
             ["Jwt:SigningKey"] = "replace-with-local-development-signing-key",
             ["Database:AutoMigrate"] = "false",
             ["Database:Seed"] = "false"
         };
+        IntegrationTestInternalAuth.AddConfiguration(configuration, actor, includePrivateKey);
+        return configuration;
+    }
+
+    private static void AssertSearchIndexRefreshToken(string? token)
+    {
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+        Assert.Equal(SekaiInternalAuthDefaults.AssetServiceActor, jwt.Claims.Single(claim =>
+            claim.Type == SekaiInternalAuthDefaults.ActorClaimType).Value);
+        Assert.Equal(SekaiInternalAuthDefaults.SearchIndexRebuildScope, jwt.Claims.Single(claim =>
+            claim.Type == SekaiInternalAuthDefaults.ScopeClaimType).Value);
+        Assert.Contains(SekaiInternalAuthDefaults.SearchServiceActor, jwt.Audiences);
     }
 }

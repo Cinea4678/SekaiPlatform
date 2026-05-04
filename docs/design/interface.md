@@ -65,12 +65,14 @@ http://localhost:8080
 
 ### 鉴权
 
-API 支持两种 Token 传递方式：
+外部 API 支持两种外部用户 token 传递方式：
 
 - Cookie：`SEKAI_PLATFORM_AUTH`
 - Header：`Authorization: Bearer <token>`
 
-Token 格式使用 JWT。
+外部用户 token 表示前端用户登录状态，只用于前端到 API Service 的外部身份边界。API Service 验证外部用户 token 后，按 @security-model.md 为内部服务调用签发面向目标服务的内部 token。
+
+内部服务的 `/internal/...` endpoint 不作为前端公开 API。迁移完成后，内部 endpoint 只接受内部 token，不接受外部用户 token、`X-Sekai-User-Id`、`X-Sekai-Tenant-Id` 或 `X-Sekai-Maintenance-Token` 作为授权依据。
 
 ### 租户上下文
 
@@ -78,6 +80,7 @@ Token 格式使用 JWT。
 - 客户端传入的租户 ID 不作为权限依据。
 - 当前租户为空时，业务接口返回 401 或 403。
 - 译文、翻译版本、导入结果只在当前租户内可见。
+- 内部服务从已验证的内部 token claims 获取用户和租户上下文，并继续在本服务内校验成员关系、角色和资源归属。
 
 ### 正常响应
 

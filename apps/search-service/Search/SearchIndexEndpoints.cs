@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using SekaiPlatform.Shared.Web;
 
 namespace SekaiPlatform.SearchService.Search;
@@ -15,17 +14,10 @@ internal static class SearchIndexEndpoints
     {
         app.MapPost("/internal/search/index/rebuild", async Task<IResult> (
             SearchIndexRebuildRequest? request,
-            HttpContext httpContext,
             SearchIndexRebuilder rebuilder,
             ICurrentRequestContextAccessor contextAccessor,
-            IOptions<SearchIndexMaintenanceOptions> maintenanceOptions,
             CancellationToken cancellationToken) =>
         {
-            if (!IsAuthorized(httpContext, maintenanceOptions))
-            {
-                return Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
-            }
-
             request ??= new SearchIndexRebuildRequest();
             var scope = SearchIndexRebuilder.NormalizeScope(request.Scope);
             if (scope is not SearchIndexConstants.ScopeAll
@@ -43,26 +35,11 @@ internal static class SearchIndexEndpoints
 
             var response = await rebuilder.RebuildAsync(request, cancellationToken);
             return Results.Json(response);
-        });
+        }).RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.SearchIndexRebuildScope,
+            [SekaiInternalAuthDefaults.AssetServiceActor, SekaiInternalAuthDefaults.SyncWorkerActor]);
 
         return app;
-    }
-
-    /// <summary>
-    /// Checks the configured maintenance token before allowing index mutation.
-    /// </summary>
-    private static bool IsAuthorized(
-        HttpContext httpContext,
-        IOptions<SearchIndexMaintenanceOptions> maintenanceOptions)
-    {
-        var expected = maintenanceOptions.Value.MaintenanceToken;
-        if (string.IsNullOrWhiteSpace(expected))
-        {
-            return false;
-        }
-
-        return httpContext.Request.Headers.TryGetValue(SekaiHeaders.MaintenanceToken, out var actual)
-            && string.Equals(actual.ToString(), expected, StringComparison.Ordinal);
     }
 
     /// <summary>

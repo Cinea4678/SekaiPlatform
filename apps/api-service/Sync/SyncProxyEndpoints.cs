@@ -13,14 +13,19 @@ internal static class SyncProxyEndpoints
     {
         app.MapPost("/api/sync/jobs", async Task<IResult> (
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAssetServiceAsync(
                 httpClientFactory,
+                internalTokenIssuer,
+                contextAccessor.GetCurrent(),
                 httpContext,
                 HttpMethod.Post,
                 "/internal/sync/jobs",
+                SekaiInternalAuthDefaults.SyncJobsWriteScope,
                 cancellationToken);
 
             return await ForwardResponseAsync(response, cancellationToken);
@@ -28,14 +33,19 @@ internal static class SyncProxyEndpoints
 
         app.MapGet("/api/sync/jobs", async Task<IResult> (
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAssetServiceAsync(
                 httpClientFactory,
+                internalTokenIssuer,
+                contextAccessor.GetCurrent(),
                 httpContext,
                 HttpMethod.Get,
                 "/internal/sync/jobs" + httpContext.Request.QueryString,
+                SekaiInternalAuthDefaults.SyncJobsReadScope,
                 cancellationToken);
 
             return await ForwardResponseAsync(response, cancellationToken);
@@ -44,14 +54,19 @@ internal static class SyncProxyEndpoints
         app.MapGet("/api/sync/jobs/{syncJobId:long}", async Task<IResult> (
             long syncJobId,
             IHttpClientFactory httpClientFactory,
+            SekaiInternalTokenIssuer internalTokenIssuer,
+            ICurrentRequestContextAccessor contextAccessor,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             using var response = await SendAssetServiceAsync(
                 httpClientFactory,
+                internalTokenIssuer,
+                contextAccessor.GetCurrent(),
                 httpContext,
                 HttpMethod.Get,
                 $"/internal/sync/jobs/{syncJobId}",
+                SekaiInternalAuthDefaults.SyncJobsReadScope,
                 cancellationToken);
 
             return await ForwardResponseAsync(response, cancellationToken);
@@ -61,13 +76,16 @@ internal static class SyncProxyEndpoints
     }
 
     /// <summary>
-    /// Sends a sync request to Asset Service while preserving request body and bearer authentication.
+    /// Sends a sync request to Asset Service with a scoped internal token.
     /// </summary>
     private static async Task<HttpResponseMessage> SendAssetServiceAsync(
         IHttpClientFactory httpClientFactory,
+        SekaiInternalTokenIssuer internalTokenIssuer,
+        CurrentRequestContext requestContext,
         HttpContext httpContext,
         HttpMethod method,
         string path,
+        string scope,
         CancellationToken cancellationToken)
     {
         var request = new HttpRequestMessage(method, path);
@@ -80,16 +98,13 @@ internal static class SyncProxyEndpoints
             }
         }
 
-        if (httpContext.Request.Headers.TryGetValue("Authorization", out var authorization)
-            && AuthenticationHeaderValue.TryParse(authorization.ToString(), out var header))
-        {
-            request.Headers.Authorization = header;
-        }
-        else if (httpContext.Request.Cookies.TryGetValue(SekaiAuthDefaults.AuthenticationCookieName, out var token)
-            && !string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            internalTokenIssuer.Issue(
+                SekaiInternalAuthDefaults.AssetServiceActor,
+                scope,
+                requestContext.UserId,
+                requestContext.TenantId));
 
         return await httpClientFactory
             .CreateClient("asset-service")

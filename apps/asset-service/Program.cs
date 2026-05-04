@@ -4,7 +4,9 @@ using SekaiPlatform.SourceSync;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddSekaiPlatformWebDefaults();
+builder.AddSekaiPlatformWebDefaults(
+    SekaiAuthenticationMode.InternalToken,
+    requireInternalTokenIssuer: true);
 builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.AddSekaiPlatformInternalHttpClient("search-service", builder.Configuration, "SearchService");
 builder.Services.AddSekaiPlatformSearchIndexRefreshClient(builder.Configuration);

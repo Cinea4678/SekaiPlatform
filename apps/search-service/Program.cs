@@ -4,11 +4,9 @@ using SekaiPlatform.Shared.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddSekaiPlatformWebDefaults();
+builder.AddSekaiPlatformWebDefaults(SekaiAuthenticationMode.InternalToken);
 builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.Configure<SearchIndexOptions>(builder.Configuration.GetSection(SearchIndexOptions.SectionName));
-builder.Services.Configure<SearchIndexMaintenanceOptions>(
-    builder.Configuration.GetSection(SearchIndexMaintenanceOptions.SectionName));
 builder.Services.AddHttpClient<ElasticsearchIndexClient>((services, client) =>
 {
     var options = services

@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SekaiPlatform.Shared.Web;
 
 /// <summary>
-/// Propagates request trace, user, and tenant context to internal HTTP calls.
+/// Propagates request trace context to internal HTTP calls.
 /// </summary>
 /// <param name="serviceProvider">The request service provider used to resolve context accessors.</param>
 public sealed class SekaiContextPropagationHandler(IServiceProvider serviceProvider) : DelegatingHandler
@@ -25,16 +25,6 @@ public sealed class SekaiContextPropagationHandler(IServiceProvider serviceProvi
         if (context is not null)
         {
             SetHeader(request.Headers, SekaiHeaders.TraceId, context.TraceId);
-
-            if (context.UserId is not null)
-            {
-                SetHeader(request.Headers, SekaiHeaders.UserId, context.UserId.Value.ToString());
-            }
-
-            if (context.TenantId is not null)
-            {
-                SetHeader(request.Headers, SekaiHeaders.TenantId, context.TenantId.Value.ToString());
-            }
         }
 
         return base.SendAsync(request, cancellationToken);

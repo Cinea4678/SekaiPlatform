@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Options;
 
 namespace SekaiPlatform.Shared.Web;
 
@@ -8,10 +7,10 @@ namespace SekaiPlatform.Shared.Web;
 /// Calls Search Service to refresh index documents after story data changes.
 /// </summary>
 /// <param name="httpClient">HTTP client configured with the Search Service base address.</param>
-/// <param name="options">Maintenance token options used to authorize the internal request.</param>
+/// <param name="internalTokenIssuer">Issuer used to authorize internal search maintenance calls.</param>
 public sealed class SearchIndexRefreshClient(
     HttpClient httpClient,
-    IOptions<SearchIndexMaintenanceOptions> options)
+    SekaiInternalTokenIssuer internalTokenIssuer)
 {
     private const string RebuildPath = "/internal/search/index/rebuild";
     private const string StoryRefreshScope = "all";
@@ -38,11 +37,11 @@ public sealed class SearchIndexRefreshClient(
             Content = JsonContent.Create(new SearchIndexRefreshRequest(StoryRefreshScope, distinctStoryIds))
         };
 
-        var token = options.Value.MaintenanceToken;
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.TryAddWithoutValidation(SekaiHeaders.MaintenanceToken, token);
-        }
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            internalTokenIssuer.Issue(
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
 
         try
         {
