@@ -1,7 +1,15 @@
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds synchronization drafts for Moe Sekai special stories.
+/// </summary>
 internal static class SpecialStoryCatalogBuilder
 {
+    /// <summary>
+    /// Enumerates special story drafts from special story master records.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <returns>Special story synchronization drafts.</returns>
     public static IEnumerable<StorySyncDraft> Build(MoeSekaiMasterData masterData)
     {
         foreach (var specialStory in masterData.SpecialStories)

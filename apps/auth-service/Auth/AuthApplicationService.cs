@@ -3,11 +3,20 @@ using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
 using SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Coordinates Auth Service user login, session, tenant switching, and invitation workflows.
+/// </summary>
+/// <param name="dbContext">Database context used for users, tenants, and memberships.</param>
+/// <param name="tokenIssuer">Issuer for access tokens returned by authentication flows.</param>
+/// <param name="contextAccessor">Accessor for the current authenticated request context.</param>
 internal sealed class AuthApplicationService(
     SekaiPlatformDbContext dbContext,
     AuthTokenIssuer tokenIssuer,
     ICurrentRequestContextAccessor contextAccessor)
 {
+    /// <summary>
+    /// Authenticates a QQ ID and password, then returns an access token and available tenants.
+    /// </summary>
     public async Task<IResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
@@ -45,6 +54,9 @@ internal sealed class AuthApplicationService(
         return Results.Json(CreateAuthResponse(user, currentTenant, tenants, token));
     }
 
+    /// <summary>
+    /// Returns the current user profile, selected tenant, and available tenant memberships.
+    /// </summary>
     public async Task<IResult> GetSessionAsync(CancellationToken cancellationToken)
     {
         var context = contextAccessor.GetCurrent();
@@ -73,6 +85,9 @@ internal sealed class AuthApplicationService(
             tenants));
     }
 
+    /// <summary>
+    /// Lists active tenant memberships for the current user.
+    /// </summary>
     public async Task<IResult> GetTenantsAsync(CancellationToken cancellationToken)
     {
         var context = contextAccessor.GetCurrent();
@@ -94,6 +109,9 @@ internal sealed class AuthApplicationService(
         return Results.Json(tenants);
     }
 
+    /// <summary>
+    /// Selects a tenant for the current user and returns a replacement access token.
+    /// </summary>
     public async Task<IResult> SwitchTenantAsync(SwitchTenantRequest request, CancellationToken cancellationToken)
     {
         var context = contextAccessor.GetCurrent();
@@ -122,6 +140,9 @@ internal sealed class AuthApplicationService(
         return Results.Json(CreateAuthResponse(user, currentTenant, tenants, token));
     }
 
+    /// <summary>
+    /// Invites or reactivates a user in the current tenant subject to inviter role rules.
+    /// </summary>
     public async Task<IResult> InviteUserAsync(InvitationRequest request, CancellationToken cancellationToken)
     {
         var context = contextAccessor.GetCurrent();
@@ -213,26 +234,41 @@ internal sealed class AuthApplicationService(
             defaultPassword));
     }
 
+    /// <summary>
+    /// Creates a standard unauthenticated response.
+    /// </summary>
     private IResult Unauthorized()
     {
         return Error(StatusCodes.Status401Unauthorized, "Unauthorized.");
     }
 
+    /// <summary>
+    /// Creates a standard forbidden response.
+    /// </summary>
     private IResult Forbidden()
     {
         return Error(StatusCodes.Status403Forbidden, "Forbidden.");
     }
 
+    /// <summary>
+    /// Creates a standard invalid invitation response.
+    /// </summary>
     private IResult BadRequest()
     {
         return Error(StatusCodes.Status400BadRequest, "Invalid invitation request.");
     }
 
+    /// <summary>
+    /// Creates a trace-aware Auth Service error response.
+    /// </summary>
     private IResult Error(int statusCode, string message)
     {
         return AuthEndpointResults.Error(contextAccessor, statusCode, message);
     }
 
+    /// <summary>
+    /// Builds the common authentication response returned after login and tenant selection.
+    /// </summary>
     private static AuthResponse CreateAuthResponse(
         User user,
         TenantMembershipResponse? currentTenant,
@@ -247,11 +283,17 @@ internal sealed class AuthApplicationService(
             tenants);
     }
 
+    /// <summary>
+    /// Converts a user entity into the public session profile shape.
+    /// </summary>
     private static UserProfileResponse CreateUserProfile(User user)
     {
         return new UserProfileResponse(user.Id, user.QqId, user.DisplayName, user.AvatarUrl);
     }
 
+    /// <summary>
+    /// Projects active tenant memberships into deterministic response order.
+    /// </summary>
     private static List<TenantMembershipResponse> GetActiveTenantResponses(IEnumerable<UserTenant> memberships)
     {
         return memberships
@@ -265,6 +307,9 @@ internal sealed class AuthApplicationService(
             .ToList();
     }
 
+    /// <summary>
+    /// Derives the initial password used when inviting a previously unknown QQ ID.
+    /// </summary>
     private static string CreateDefaultPassword(string qqId)
     {
         return qqId.Length <= 6 ? qqId : qqId[^6..];

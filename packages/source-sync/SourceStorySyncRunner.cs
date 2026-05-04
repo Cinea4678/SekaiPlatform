@@ -3,6 +3,15 @@ using SekaiPlatform.Database;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Runs the Phase 4 source story synchronization workflow against the platform database.
+/// </summary>
+/// <param name="dbContext">Database context used for sync jobs and story writes.</param>
+/// <param name="masterClient">Client used to fetch Moe Sekai master data.</param>
+/// <param name="scenarioClient">Client used to download scenario assets.</param>
+/// <param name="catalogBuilder">Builder that converts master data into story drafts.</param>
+/// <param name="scenarioParser">Parser that extracts source lines from scenario JSON.</param>
+/// <param name="options">Moe Sekai source synchronization options.</param>
 public sealed class SourceStorySyncRunner(
     SekaiPlatformDbContext dbContext,
     MoeSekaiMasterClient masterClient,
@@ -13,6 +22,12 @@ public sealed class SourceStorySyncRunner(
 {
     private const long AdvisoryLockKey = 8210187004;
 
+    /// <summary>
+    /// Executes one source story sync job and records its final status.
+    /// </summary>
+    /// <param name="triggerType">Trigger type stored on the sync job.</param>
+    /// <param name="cancellationToken">Token used to cancel the sync workflow.</param>
+    /// <returns>The persisted sync job record.</returns>
     public async Task<SyncJob> RunAsync(string triggerType, CancellationToken cancellationToken)
     {
         var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
@@ -98,6 +113,11 @@ public sealed class SourceStorySyncRunner(
         return job ?? throw new InvalidOperationException("Source story sync job was not created.");
     }
 
+    /// <summary>
+    /// Attempts to acquire the PostgreSQL advisory lock used to serialize sync jobs.
+    /// </summary>
+    /// <param name="cancellationToken">Token used to cancel the lock query.</param>
+    /// <returns><see langword="true"/> when the lock was acquired.</returns>
     private async Task<bool> TryAcquireSyncLockAsync(CancellationToken cancellationToken)
     {
         await dbContext.Database.OpenConnectionAsync(cancellationToken);
@@ -113,6 +133,10 @@ public sealed class SourceStorySyncRunner(
         return acquired;
     }
 
+    /// <summary>
+    /// Releases the PostgreSQL advisory lock and closes the held connection.
+    /// </summary>
+    /// <returns>A task that completes after the lock is released.</returns>
     private async Task ReleaseSyncLockAsync()
     {
         await dbContext.Database
@@ -121,6 +145,15 @@ public sealed class SourceStorySyncRunner(
         await dbContext.Database.CloseConnectionAsync();
     }
 
+    /// <summary>
+    /// Upserts story groups and stories, then replaces source lines for each downloaded scenario.
+    /// </summary>
+    /// <param name="drafts">Story synchronization drafts to process.</param>
+    /// <param name="character2ds">Character 2D lookup keyed by character2d ID.</param>
+    /// <param name="mobCharacters">Mob character names keyed by mob character ID.</param>
+    /// <param name="gameCharacters">Game character names keyed by game character ID.</param>
+    /// <param name="cancellationToken">Token used to cancel database and network operations.</param>
+    /// <returns>Aggregate counts and failed scenario samples.</returns>
     private async Task<SyncDraftResults> SyncDraftsAsync(
         IReadOnlyList<StorySyncDraft> drafts,
         IReadOnlyDictionary<int, Character2dInfo> character2ds,
@@ -183,6 +216,13 @@ public sealed class SourceStorySyncRunner(
         return new SyncDraftResults(syncedStories, sourceLines, failures);
     }
 
+    /// <summary>
+    /// Upserts story groups from draft group metadata.
+    /// </summary>
+    /// <param name="groupDrafts">Draft groups to upsert.</param>
+    /// <param name="now">Timestamp applied to updated group records.</param>
+    /// <param name="cancellationToken">Token used to cancel database operations.</param>
+    /// <returns>Story groups keyed by story type, external type, and external ID.</returns>
     private async Task<IReadOnlyDictionary<string, StoryGroup>> UpsertGroupsAsync(
         IEnumerable<StoryGroupDraft> groupDrafts,
         DateTimeOffset now,
@@ -221,6 +261,14 @@ public sealed class SourceStorySyncRunner(
         return groups;
     }
 
+    /// <summary>
+    /// Upserts stories from draft story metadata and assigns them to existing groups.
+    /// </summary>
+    /// <param name="drafts">Story synchronization drafts to upsert.</param>
+    /// <param name="groups">Persisted story groups keyed by draft group identity.</param>
+    /// <param name="now">Timestamp applied to updated story records.</param>
+    /// <param name="cancellationToken">Token used to cancel database operations.</param>
+    /// <returns>Stories keyed by story type and scenario ID.</returns>
     private async Task<IReadOnlyDictionary<string, Story>> UpsertStoriesAsync(
         IReadOnlyList<StorySyncDraft> drafts,
         IReadOnlyDictionary<string, StoryGroup> groups,
@@ -261,15 +309,30 @@ public sealed class SourceStorySyncRunner(
     }
 }
 
+/// <summary>
+/// Failed scenario sample stored in source sync job metadata.
+/// </summary>
+/// <param name="StoryType">Platform story type constant.</param>
+/// <param name="ScenarioId">Moe Sekai scenario ID.</param>
+/// <param name="ErrorMessage">Stable failure message for operators.</param>
 public sealed record ScenarioFailure(
     string StoryType,
     string ScenarioId,
     string ErrorMessage);
 
+/// <summary>
+/// Aggregate result from processing story synchronization drafts.
+/// </summary>
+/// <param name="SyncedStories">Number of stories whose source lines were replaced.</param>
+/// <param name="SourceLines">Number of source lines inserted.</param>
+/// <param name="Failures">Failed scenario samples.</param>
 internal sealed record SyncDraftResults(
     int SyncedStories,
     int SourceLines,
     IReadOnlyList<ScenarioFailure> Failures);
 
+/// <summary>
+/// Indicates that another source story sync job already holds the advisory lock.
+/// </summary>
 public sealed class SourceSyncAlreadyRunningException()
     : Exception("Source story sync is already running.");

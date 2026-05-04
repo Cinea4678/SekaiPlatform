@@ -19,6 +19,9 @@ using AuthServiceProgram = AuthService::Program;
 
 namespace SekaiPlatform.IntegrationTests;
 
+/// <summary>
+/// Exercises manual source-story synchronization through API, Auth, Asset, and sync runner paths.
+/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SyncApiTests : IDisposable
 {
@@ -27,6 +30,9 @@ public sealed class SyncApiTests : IDisposable
     private readonly AssetServiceFactory assetFactory;
     private readonly ApiServiceFactory apiFactory;
 
+    /// <summary>
+    /// Creates service hosts wired to a fake Moe Sekai source and the shared database.
+    /// </summary>
     public SyncApiTests(IntegrationTestDatabaseFixture fixture)
     {
         this.fixture = fixture;
@@ -37,6 +43,9 @@ public sealed class SyncApiTests : IDisposable
         apiFactory = new ApiServiceFactory(fixture.ConnectionString, authFactory, assetFactory);
     }
 
+    /// <summary>
+    /// Verifies an administrator can trigger sync and persist story groups, stories, source lines, and job state.
+    /// </summary>
     [Fact]
     public async Task ManualSync_AdminCreatesStoriesSourceLinesAndSucceededJob()
     {
@@ -69,6 +78,9 @@ public sealed class SyncApiTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
     }
 
+    /// <summary>
+    /// Ensures normal users cannot trigger manual source synchronization.
+    /// </summary>
     [Fact]
     public async Task ManualSync_NormalUserIsForbidden()
     {
@@ -89,6 +101,9 @@ public sealed class SyncApiTests : IDisposable
         await AssertErrorResponseAsync(response);
     }
 
+    /// <summary>
+    /// Verifies one failed scenario is recorded in metadata while successful scenarios are still committed.
+    /// </summary>
     [Fact]
     public async Task PartialScenarioFailureKeepsJobSucceededAndRecordsMetadata()
     {
@@ -118,6 +133,9 @@ public sealed class SyncApiTests : IDisposable
             line.Story!.ScenarioId == "scenario_event_missing_partial"));
     }
 
+    /// <summary>
+    /// Ensures a sync with no downloadable scenarios marks the job as failed.
+    /// </summary>
     [Fact]
     public async Task ScenarioTotalFailureMarksJobFailed()
     {
@@ -138,6 +156,9 @@ public sealed class SyncApiTests : IDisposable
         Assert.Equal("Source story sync failed.", job.ErrorMessage);
     }
 
+    /// <summary>
+    /// Verifies malformed manual sync JSON is rejected with the common error envelope.
+    /// </summary>
     [Fact]
     public async Task ManualSync_WithMalformedJson_ReturnsBadRequest()
     {
@@ -159,6 +180,9 @@ public sealed class SyncApiTests : IDisposable
         await AssertErrorResponseAsync(response);
     }
 
+    /// <summary>
+    /// Disposes API, Asset, and Auth hosts created for the test case.
+    /// </summary>
     public void Dispose()
     {
         apiFactory.Dispose();
@@ -166,6 +190,9 @@ public sealed class SyncApiTests : IDisposable
         authFactory.Dispose();
     }
 
+    /// <summary>
+    /// Logs in through the API service and returns the bearer token plus raw JSON response.
+    /// </summary>
     private static async Task<LoginResult> LoginAsync(HttpClient client, string username, string password)
     {
         using var response = await client.PostAsJsonAsync("/api/auth/login", new { username, password });
@@ -178,6 +205,9 @@ public sealed class SyncApiTests : IDisposable
         return new LoginResult(token!, json);
     }
 
+    /// <summary>
+    /// Sends an API request with bearer authentication and optional JSON body.
+    /// </summary>
     private static Task<HttpResponseMessage> SendWithBearerAsync(
         HttpClient client,
         HttpMethod method,
@@ -195,12 +225,18 @@ public sealed class SyncApiTests : IDisposable
         return client.SendAsync(request);
     }
 
+    /// <summary>
+    /// Reads a response body as a JSON document for assertions.
+    /// </summary>
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
     {
         var stream = await response.Content.ReadAsStreamAsync();
         return await JsonDocument.ParseAsync(stream);
     }
 
+    /// <summary>
+    /// Verifies the common platform error envelope contains message and trace fields.
+    /// </summary>
     private static async Task AssertErrorResponseAsync(HttpResponseMessage response)
     {
         var json = await ReadJsonAsync(response);
@@ -208,10 +244,19 @@ public sealed class SyncApiTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("trace_id").GetString()));
     }
 
+    /// <summary>
+    /// Captures login credentials and payload needed by follow-up authenticated assertions.
+    /// </summary>
     private sealed record LoginResult(string Token, JsonDocument Json);
 
+    /// <summary>
+    /// Hosts the Auth service with test configuration and the shared database.
+    /// </summary>
     private sealed class AuthServiceFactory(string connectionString) : WebApplicationFactory<AuthServiceProgram>
     {
+        /// <summary>
+        /// Injects integration-test configuration before the Auth service starts.
+        /// </summary>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -221,10 +266,16 @@ public sealed class SyncApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Hosts the Asset service with fake Moe Sekai clients for deterministic sync tests.
+    /// </summary>
     private sealed class AssetServiceFactory(
         string connectionString,
         FakeMoeSekaiHandler handler) : WebApplicationFactory<AssetServiceProgram>
     {
+        /// <summary>
+        /// Injects configuration and replaces upstream Moe Sekai clients with fake HTTP clients.
+        /// </summary>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -242,11 +293,17 @@ public sealed class SyncApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Hosts the API service and routes internal Auth and Asset clients to in-memory hosts.
+    /// </summary>
     private sealed class ApiServiceFactory(
         string connectionString,
         AuthServiceFactory authFactory,
         AssetServiceFactory assetFactory) : WebApplicationFactory<Program>
     {
+        /// <summary>
+        /// Injects configuration and replaces internal service HTTP clients for test isolation.
+        /// </summary>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -264,12 +321,18 @@ public sealed class SyncApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Provides deterministic Moe Sekai master and asset responses for source sync tests.
+    /// </summary>
     private sealed class FakeMoeSekaiHandler(
         string scenarioId,
         bool scenarioSucceeds,
         string? extraScenarioId = null,
         bool extraScenarioSucceeds = false) : HttpMessageHandler
     {
+        /// <summary>
+        /// Creates source sync options that route all upstream calls to this fake handler.
+        /// </summary>
         public MoeSekaiSourceSyncOptions CreateOptions()
         {
             return new MoeSekaiSourceSyncOptions
@@ -280,6 +343,9 @@ public sealed class SyncApiTests : IDisposable
             };
         }
 
+        /// <summary>
+        /// Returns fake version, master catalog, and scenario payloads based on request path.
+        /// </summary>
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -360,6 +426,9 @@ public sealed class SyncApiTests : IDisposable
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
 
+        /// <summary>
+        /// Builds a JSON HTTP response for fake upstream payloads.
+        /// </summary>
         private static Task<HttpResponseMessage> JsonAsync(string json)
         {
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -369,6 +438,9 @@ public sealed class SyncApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Creates shared service configuration used by API, Auth, and Asset test hosts.
+    /// </summary>
     private static Dictionary<string, string?> CreateConfiguration(string connectionString)
     {
         return new Dictionary<string, string?>

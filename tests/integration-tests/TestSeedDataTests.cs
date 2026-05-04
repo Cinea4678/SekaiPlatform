@@ -4,9 +4,15 @@ using SekaiPlatform.Database;
 
 namespace SekaiPlatform.IntegrationTests;
 
+/// <summary>
+/// Verifies seed data created by the shared integration database fixture.
+/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class TestSeedDataTests(IntegrationTestDatabaseFixture fixture)
 {
+    /// <summary>
+    /// Ensures the fixture creates the primary tenant and a usable super-admin account.
+    /// </summary>
     [Fact]
     public async Task Fixture_SeedsDedicatedTenantAndSuperAdmin()
     {

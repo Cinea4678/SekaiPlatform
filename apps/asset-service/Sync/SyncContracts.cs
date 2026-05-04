@@ -1,9 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+/// <summary>
+/// Request body for manually starting a source story synchronization job.
+/// </summary>
 internal sealed record SyncJobRequest(
     [property: JsonPropertyName("source")] string? Source);
 
+/// <summary>
+/// Response describing a synchronization job and its execution metadata.
+/// </summary>
 internal sealed record SyncJobResponse(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("job_type")] string JobType,

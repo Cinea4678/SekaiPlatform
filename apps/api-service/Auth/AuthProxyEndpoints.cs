@@ -3,8 +3,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Maps API Service authentication endpoints that proxy frontend calls to Auth Service.
+/// </summary>
 internal static class AuthProxyEndpoints
 {
+    /// <summary>
+    /// Registers public authentication, session, tenant, and invitation proxy endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapAuthProxyEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/auth/login", async Task<IResult> (
@@ -99,6 +105,9 @@ internal static class AuthProxyEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Sends a request to Auth Service while preserving bearer authentication from headers or cookies.
+    /// </summary>
     private static async Task<HttpResponseMessage> SendAuthServiceAsync(
         IHttpClientFactory httpClientFactory,
         HttpContext httpContext,
@@ -129,6 +138,9 @@ internal static class AuthProxyEndpoints
             .SendAsync(request, cancellationToken);
     }
 
+    /// <summary>
+    /// Forwards an Auth Service response and optionally stores a returned access token in a cookie.
+    /// </summary>
     private static async Task<IResult> ForwardAuthResponseAsync(
         HttpResponseMessage response,
         HttpContext httpContext,
@@ -149,6 +161,9 @@ internal static class AuthProxyEndpoints
         return Results.Content(body, contentType, statusCode: (int)response.StatusCode);
     }
 
+    /// <summary>
+    /// Writes the frontend authentication cookie using the issued access token.
+    /// </summary>
     private static void SetAuthenticationCookie(HttpContext httpContext, AuthTokenResponse token)
     {
         httpContext.Response.Cookies.Append(
@@ -163,12 +178,18 @@ internal static class AuthProxyEndpoints
             });
     }
 
+    /// <summary>
+    /// Decides whether the auth cookie must be marked secure for the current environment.
+    /// </summary>
     private static bool ShouldUseSecureCookie(HttpContext httpContext)
     {
         var environment = httpContext.RequestServices.GetRequiredService<IHostEnvironment>();
         return httpContext.Request.IsHttps || !environment.IsDevelopment();
     }
 
+    /// <summary>
+    /// Deletes the frontend authentication cookie on logout.
+    /// </summary>
     private static void ClearAuthenticationCookie(HttpResponse response)
     {
         response.Cookies.Delete(

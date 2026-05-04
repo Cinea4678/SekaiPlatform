@@ -3,8 +3,16 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds synchronization drafts for Moe Sekai area talks.
+/// </summary>
 internal static class AreaTalkCatalogBuilder
 {
+    /// <summary>
+    /// Enumerates area talk drafts from action set master records.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <returns>Area talk synchronization drafts.</returns>
     public static IEnumerable<StorySyncDraft> Build(MoeSekaiMasterData masterData)
     {
         foreach (var actionSet in masterData.ActionSets)
@@ -57,6 +65,11 @@ internal static class AreaTalkCatalogBuilder
         }
     }
 
+    /// <summary>
+    /// Maps an action set to the platform area talk category.
+    /// </summary>
+    /// <param name="actionSet">Moe Sekai action set master record.</param>
+    /// <returns>The category identifier, or an empty string when the action set is unsupported.</returns>
     public static string GetCategory(JsonElement actionSet)
     {
         var scenarioId = actionSet.GetStringOrNull("scenarioId");
@@ -96,6 +109,11 @@ internal static class AreaTalkCatalogBuilder
         return releaseConditionId is >= 2000000 and <= 2000036 ? "theater" : "";
     }
 
+    /// <summary>
+    /// Converts an area talk category identifier into a group title.
+    /// </summary>
+    /// <param name="category">Area talk category identifier.</param>
+    /// <returns>Display title for the category.</returns>
     private static string GetTitle(string category)
     {
         return category switch

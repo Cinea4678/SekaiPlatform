@@ -1,7 +1,13 @@
 using System.Text.Json.Serialization;
 
+/// <summary>
+/// Maps API Service endpoints for checking internal service health through configured clients.
+/// </summary>
 internal static class InternalServicesHealthEndpoints
 {
+    /// <summary>
+    /// Registers the aggregate health endpoint for Auth, Asset, and Search services.
+    /// </summary>
     public static IEndpointRouteBuilder MapInternalServicesHealthEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/internal-services/health", async (
@@ -26,6 +32,9 @@ internal static class InternalServicesHealthEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Calls a single internal service health endpoint and normalizes failures into response data.
+    /// </summary>
     private static async Task<InternalServiceHealthItem> CheckHealthAsync(
         IHttpClientFactory httpClientFactory,
         string serviceName,
@@ -59,10 +68,16 @@ internal static class InternalServicesHealthEndpoints
     }
 }
 
+/// <summary>
+/// Aggregate health response for all checked internal services.
+/// </summary>
 internal sealed record InternalServicesHealthResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("services")] IReadOnlyCollection<InternalServiceHealthItem> Services);
 
+/// <summary>
+/// Health result for one internal service.
+/// </summary>
 internal sealed record InternalServiceHealthItem(
     [property: JsonPropertyName("service")] string Service,
     [property: JsonPropertyName("healthy")] bool Healthy,

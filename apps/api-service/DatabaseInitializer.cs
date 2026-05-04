@@ -2,11 +2,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
 
+/// <summary>
+/// Applies development-only database migration and seed setup for API Service startup.
+/// </summary>
 internal static class DatabaseInitializer
 {
     private const string DefaultTenantName = "PJS 字幕组";
     private const string AdminQqId = "1650121748";
 
+    /// <summary>
+    /// Runs configured development database initialization steps.
+    /// </summary>
     public static async Task InitializeAsync(WebApplication app)
     {
         var options = app.Configuration.GetSection("Database").Get<DatabaseOptions>() ?? new DatabaseOptions();
@@ -34,6 +40,9 @@ internal static class DatabaseInitializer
         }
     }
 
+    /// <summary>
+    /// Seeds the default tenant, administrator user, and super administrator membership.
+    /// </summary>
     private static async Task SeedAsync(SekaiPlatformDbContext dbContext, SeedUserOptions seedUsers)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -54,6 +63,9 @@ internal static class DatabaseInitializer
         await transaction.CommitAsync();
     }
 
+    /// <summary>
+    /// Finds or creates a seed user and applies an initial password when configured.
+    /// </summary>
     private static async Task<User> EnsureUserAsync(
         SekaiPlatformDbContext dbContext,
         string qqId,
@@ -83,6 +95,9 @@ internal static class DatabaseInitializer
         return user;
     }
 
+    /// <summary>
+    /// Ensures the seed user has the required tenant membership.
+    /// </summary>
     private static async Task EnsureMembershipAsync(
         SekaiPlatformDbContext dbContext,
         long tenantId,
@@ -105,15 +120,35 @@ internal static class DatabaseInitializer
         }
     }
 
+    /// <summary>
+    /// Development database initialization options.
+    /// </summary>
     private sealed class DatabaseOptions
     {
+        /// <summary>
+        /// Gets or sets whether startup should apply pending EF Core migrations.
+        /// </summary>
         public bool AutoMigrate { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether startup should seed development users and memberships.
+        /// </summary>
         public bool Seed { get; set; }
+
+        /// <summary>
+        /// Gets or sets credentials used when creating development seed users.
+        /// </summary>
         public SeedUserOptions SeedUsers { get; set; } = new();
     }
 
+    /// <summary>
+    /// Seed user credentials used for local development.
+    /// </summary>
     private sealed class SeedUserOptions
     {
+        /// <summary>
+        /// Gets or sets the password assigned to the default super administrator.
+        /// </summary>
         public string? AdminPassword { get; set; }
     }
 }

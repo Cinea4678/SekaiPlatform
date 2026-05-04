@@ -2,8 +2,17 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds synchronization drafts for Moe Sekai card stories.
+/// </summary>
 internal static class CardStoryCatalogBuilder
 {
+    /// <summary>
+    /// Enumerates card story drafts from card episode and card master records.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <param name="cardsById">Card master records keyed by card ID.</param>
+    /// <returns>Card story synchronization drafts.</returns>
     public static IEnumerable<StorySyncDraft> Build(
         MoeSekaiMasterData masterData,
         IReadOnlyDictionary<int, JsonElement> cardsById)

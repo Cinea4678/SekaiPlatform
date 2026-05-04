@@ -3,8 +3,14 @@ using SekaiPlatform.SourceSync;
 
 namespace SekaiPlatform.IntegrationTests;
 
+/// <summary>
+/// Verifies source story synchronization helpers against Moe Sekai phase-four data rules.
+/// </summary>
 public sealed class SourceSyncTests
 {
+    /// <summary>
+    /// Ensures scenario download metadata maps to the expected upstream asset paths.
+    /// </summary>
     [Fact]
     public void ScenarioPathBuilder_BuildsPhase4StoryPaths()
     {
@@ -45,6 +51,9 @@ public sealed class SourceSyncTests
                 null)));
     }
 
+    /// <summary>
+    /// Ensures area talk catalog rows are categorized with the same rules as Moe Sekai.
+    /// </summary>
     [Fact]
     public void AreaTalkCategory_MatchesMoeSekaiRules()
     {
@@ -57,6 +66,9 @@ public sealed class SourceSyncTests
         Assert.Equal("theater", GetCategory("""{"id":6,"releaseConditionId":2000001,"scenarioId":"areatalk_theater","actionSetType":"normal","isNextGrade":false}"""));
     }
 
+    /// <summary>
+    /// Verifies Unity scenario parsing emits dialogue, separators, and special-effect lines.
+    /// </summary>
     [Fact]
     public void UnityScenarioParser_ExtractsDialogueSpecialEffectsAndSeparator()
     {
@@ -113,6 +125,9 @@ public sealed class SourceSyncTests
             line => Assert.Equal("choice", line.LineType));
     }
 
+    /// <summary>
+    /// Parses one area talk master row and returns the derived synchronization category.
+    /// </summary>
     private static string GetCategory(string json)
     {
         using var document = JsonDocument.Parse(json);

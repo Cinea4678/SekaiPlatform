@@ -17,4 +17,7 @@ app.MapSyncEndpoints();
 
 app.Run();
 
+/// <summary>
+/// ASP.NET Core entry point marker for Asset Service hosting and tests.
+/// </summary>
 public partial class Program;

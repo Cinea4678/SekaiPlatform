@@ -1,7 +1,13 @@
 using SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Builds shared Auth Service endpoint result shapes.
+/// </summary>
 internal static class AuthEndpointResults
 {
+    /// <summary>
+    /// Creates a trace-aware error response for authentication endpoints.
+    /// </summary>
     public static IResult Error(ICurrentRequestContextAccessor contextAccessor, int statusCode, string message)
     {
         var requestContext = contextAccessor.GetCurrent();

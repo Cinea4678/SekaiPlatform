@@ -2,19 +2,63 @@ using Microsoft.EntityFrameworkCore;
 
 namespace SekaiPlatform.Database;
 
+/// <summary>
+/// EF Core context for tenants, users, story assets, translations, and sync jobs.
+/// </summary>
+/// <param name="options">The context options used to configure database access.</param>
 public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbContext> options) : DbContext(options)
 {
+    /// <summary>
+    /// Gets the tenant set.
+    /// </summary>
     public DbSet<Tenant> Tenants => Set<Tenant>();
+
+    /// <summary>
+    /// Gets the user set.
+    /// </summary>
     public DbSet<User> Users => Set<User>();
+
+    /// <summary>
+    /// Gets the tenant membership set.
+    /// </summary>
     public DbSet<UserTenant> UserTenants => Set<UserTenant>();
+
+    /// <summary>
+    /// Gets the linked OAuth identity set.
+    /// </summary>
     public DbSet<UserOAuth> UserOAuths => Set<UserOAuth>();
+
+    /// <summary>
+    /// Gets the story group set.
+    /// </summary>
     public DbSet<StoryGroup> StoryGroups => Set<StoryGroup>();
+
+    /// <summary>
+    /// Gets the story set.
+    /// </summary>
     public DbSet<Story> Stories => Set<Story>();
+
+    /// <summary>
+    /// Gets the shared source line set.
+    /// </summary>
     public DbSet<StorySourceLine> StorySourceLines => Set<StorySourceLine>();
+
+    /// <summary>
+    /// Gets the tenant translation version set.
+    /// </summary>
     public DbSet<TranslationVersion> TranslationVersions => Set<TranslationVersion>();
+
+    /// <summary>
+    /// Gets the tenant translation line set.
+    /// </summary>
     public DbSet<TranslationLine> TranslationLines => Set<TranslationLine>();
+
+    /// <summary>
+    /// Gets the sync job set.
+    /// </summary>
     public DbSet<SyncJob> SyncJobs => Set<SyncJob>();
 
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureTenants(modelBuilder);
@@ -29,6 +73,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         ConfigureSyncJobs(modelBuilder);
     }
 
+    /// <summary>
+    /// Configures tenant table mapping and unique names.
+    /// </summary>
     private static void ConfigureTenants(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Tenant>(entity =>
@@ -42,6 +89,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures user table mapping and login identifier uniqueness.
+    /// </summary>
     private static void ConfigureUsers(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(entity =>
@@ -59,6 +109,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures tenant memberships, role and status constraints, and tenant/user relationships.
+    /// </summary>
     private static void ConfigureUserTenants(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserTenant>(entity =>
@@ -91,6 +144,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures linked OAuth identities and their owning user relationship.
+    /// </summary>
     private static void ConfigureUserOAuthes(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserOAuth>(entity =>
@@ -108,6 +164,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures story group mapping, story type constraints, and upstream identity uniqueness.
+    /// </summary>
     private static void ConfigureStoryGroups(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<StoryGroup>(entity =>
@@ -136,6 +195,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures story mapping, story type constraints, and optional group ownership.
+    /// </summary>
     private static void ConfigureStories(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Story>(entity =>
@@ -165,6 +227,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures shared source lines and their story-scoped line ordering.
+    /// </summary>
     private static void ConfigureStorySourceLines(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<StorySourceLine>(entity =>
@@ -194,6 +259,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures tenant translation versions and creator membership integrity.
+    /// </summary>
     private static void ConfigureTranslationVersions(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TranslationVersion>(entity =>
@@ -231,6 +299,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures translated lines and enforces mapping to the same story as their version and source line.
+    /// </summary>
     private static void ConfigureTranslationLines(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TranslationLine>(entity =>
@@ -262,6 +333,9 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
         });
     }
 
+    /// <summary>
+    /// Configures sync job mapping and allowed trigger/status values.
+    /// </summary>
     private static void ConfigureSyncJobs(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<SyncJob>(entity =>

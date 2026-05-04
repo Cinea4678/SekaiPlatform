@@ -4,8 +4,14 @@ using SekaiPlatform.Database;
 using SekaiPlatform.Shared.Web;
 using SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Maps Asset Service endpoints that manage source story synchronization jobs.
+/// </summary>
 internal static class SyncEndpoints
 {
+    /// <summary>
+    /// Registers internal synchronization job endpoints for manual runs and job inspection.
+    /// </summary>
     public static IEndpointRouteBuilder MapSyncEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/internal/sync/jobs", async Task<IResult> (
@@ -86,6 +92,9 @@ internal static class SyncEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Checks whether the current request user can administer the selected tenant.
+    /// </summary>
     private static async Task<bool> IsCurrentTenantAdminAsync(
         SekaiPlatformDbContext dbContext,
         ICurrentRequestContextAccessor contextAccessor,
@@ -108,6 +117,9 @@ internal static class SyncEndpoints
         return role is UserTenantRoles.Admin or UserTenantRoles.SuperAdmin;
     }
 
+    /// <summary>
+    /// Reads an optional sync job request body and reports malformed JSON without throwing.
+    /// </summary>
     private static async Task<RequestReadResult> ReadRequestAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken)
@@ -137,6 +149,9 @@ internal static class SyncEndpoints
         }
     }
 
+    /// <summary>
+    /// Deserializes the manual sync payload into a request result.
+    /// </summary>
     private static RequestReadResult DeserializeRequest(string body)
     {
         try
@@ -149,5 +164,8 @@ internal static class SyncEndpoints
         }
     }
 
+    /// <summary>
+    /// Captures whether request body parsing succeeded and the parsed payload, if present.
+    /// </summary>
     private sealed record RequestReadResult(bool Success, SyncJobRequest? Request);
 }

@@ -40,4 +40,7 @@ await DatabaseInitializer.InitializeAsync(app);
 
 app.Run();
 
+/// <summary>
+/// ASP.NET Core entry point marker for API Service hosting and tests.
+/// </summary>
 public partial class Program;

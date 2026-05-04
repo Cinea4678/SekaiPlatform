@@ -1,7 +1,13 @@
 using SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Maps Auth Service internal endpoints for authentication and tenant membership operations.
+/// </summary>
 internal static class AuthEndpoints
 {
+    /// <summary>
+    /// Registers internal authentication, session, tenant, and invitation endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/internal/auth/login", (

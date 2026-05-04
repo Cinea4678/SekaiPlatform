@@ -2,8 +2,17 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds synchronization drafts for Moe Sekai event stories.
+/// </summary>
 internal static class EventStoryCatalogBuilder
 {
+    /// <summary>
+    /// Enumerates event story drafts from event story and event master records.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <param name="eventsById">Event master records keyed by event ID.</param>
+    /// <returns>Event story synchronization drafts.</returns>
     public static IEnumerable<StorySyncDraft> Build(
         MoeSekaiMasterData masterData,
         IReadOnlyDictionary<int, JsonElement> eventsById)

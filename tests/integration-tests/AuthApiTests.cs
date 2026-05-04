@@ -16,6 +16,9 @@ using AuthServiceProgram = AuthService::Program;
 
 namespace SekaiPlatform.IntegrationTests;
 
+/// <summary>
+/// Exercises authentication, tenant selection, and invitation flows through API and Auth services.
+/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AuthApiTests : IDisposable
 {
@@ -23,6 +26,9 @@ public sealed class AuthApiTests : IDisposable
     private readonly AuthServiceFactory authFactory;
     private readonly ApiServiceFactory apiFactory;
 
+    /// <summary>
+    /// Creates API and Auth service hosts backed by the shared integration database.
+    /// </summary>
     public AuthApiTests(IntegrationTestDatabaseFixture fixture)
     {
         this.fixture = fixture;
@@ -30,6 +36,9 @@ public sealed class AuthApiTests : IDisposable
         apiFactory = new ApiServiceFactory(fixture.ConnectionString, authFactory);
     }
 
+    /// <summary>
+    /// Verifies login returns both cookie and bearer credentials that can read the session.
+    /// </summary>
     [Fact]
     public async Task Login_ReturnsTokenCookieAndSessionWorksWithBearerAndCookie()
     {
@@ -63,6 +72,9 @@ public sealed class AuthApiTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, cookieSession.StatusCode);
     }
 
+    /// <summary>
+    /// Ensures invalid credentials return the platform error envelope with Unauthorized.
+    /// </summary>
     [Fact]
     public async Task Login_WithWrongPassword_ReturnsUnauthorized()
     {
@@ -78,6 +90,9 @@ public sealed class AuthApiTests : IDisposable
         await AssertErrorResponseAsync(response);
     }
 
+    /// <summary>
+    /// Verifies a multi-tenant user must choose a current tenant before tenant-scoped calls.
+    /// </summary>
     [Fact]
     public async Task MultiTenantUser_MustSelectTenantBeforeTenantScopedApi()
     {
@@ -120,6 +135,9 @@ public sealed class AuthApiTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(switchedJson.RootElement.GetProperty("access_token").GetString()));
     }
 
+    /// <summary>
+    /// Ensures externally supplied service-context headers cannot authenticate a request.
+    /// </summary>
     [Fact]
     public async Task SpoofedContextHeaders_DoNotBypassAuthentication()
     {
@@ -137,6 +155,9 @@ public sealed class AuthApiTests : IDisposable
         await AssertErrorResponseAsync(response);
     }
 
+    /// <summary>
+    /// Verifies super administrators can invite users and repeated invitations are idempotent.
+    /// </summary>
     [Fact]
     public async Task SuperAdmin_CanInviteNewUserWithDefaultPasswordAndRepeatIsIdempotent()
     {
@@ -180,6 +201,9 @@ public sealed class AuthApiTests : IDisposable
         Assert.Equal(JsonValueKind.Null, secondJson.RootElement.GetProperty("default_password").ValueKind);
     }
 
+    /// <summary>
+    /// Ensures tenant admins and normal users cannot grant roles beyond their authority.
+    /// </summary>
     [Fact]
     public async Task Invitation_RejectsInsufficientRoles()
     {
@@ -212,6 +236,9 @@ public sealed class AuthApiTests : IDisposable
         await AssertErrorResponseAsync(normalInvitingUser);
     }
 
+    /// <summary>
+    /// Verifies inviting an existing member fails without downgrading their role.
+    /// </summary>
     [Fact]
     public async Task Invitation_DoesNotChangeExistingMembershipRole()
     {
@@ -239,6 +266,9 @@ public sealed class AuthApiTests : IDisposable
         Assert.Equal(UserTenantRoles.SuperAdmin, role);
     }
 
+    /// <summary>
+    /// Ensures invitation validation rejects missing QQ IDs and blank roles.
+    /// </summary>
     [Fact]
     public async Task Invitation_WithNullOrBlankFields_ReturnsBadRequestError()
     {
@@ -267,6 +297,9 @@ public sealed class AuthApiTests : IDisposable
         await AssertErrorResponseAsync(blankRole);
     }
 
+    /// <summary>
+    /// Verifies logout clears the authentication cookie.
+    /// </summary>
     [Fact]
     public async Task Logout_ClearsAuthenticationCookie()
     {
@@ -279,12 +312,18 @@ public sealed class AuthApiTests : IDisposable
         Assert.Contains(cookies, item => item.Contains("SEKAI_PLATFORM_AUTH=", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Disposes in-memory service hosts created for the test case.
+    /// </summary>
     public void Dispose()
     {
         apiFactory.Dispose();
         authFactory.Dispose();
     }
 
+    /// <summary>
+    /// Logs in through the API service and returns the bearer token plus raw JSON response.
+    /// </summary>
     private static async Task<LoginResult> LoginAsync(HttpClient client, string username, string password)
     {
         using var response = await client.PostAsJsonAsync("/api/auth/login", new { username, password });
@@ -297,6 +336,9 @@ public sealed class AuthApiTests : IDisposable
         return new LoginResult(token!, json);
     }
 
+    /// <summary>
+    /// Sends an API request with bearer authentication and optional JSON body.
+    /// </summary>
     private static Task<HttpResponseMessage> SendWithBearerAsync(
         HttpClient client,
         HttpMethod method,
@@ -316,12 +358,18 @@ public sealed class AuthApiTests : IDisposable
         return client.SendAsync(request);
     }
 
+    /// <summary>
+    /// Reads a response body as a JSON document for assertions.
+    /// </summary>
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
     {
         var stream = await response.Content.ReadAsStreamAsync();
         return await JsonDocument.ParseAsync(stream);
     }
 
+    /// <summary>
+    /// Verifies the common platform error envelope contains message and trace fields.
+    /// </summary>
     private static async Task AssertErrorResponseAsync(HttpResponseMessage response)
     {
         var json = await ReadJsonAsync(response);
@@ -329,15 +377,27 @@ public sealed class AuthApiTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("trace_id").GetString()));
     }
 
+    /// <summary>
+    /// Creates a QQ ID that does not collide with deterministic fixture users.
+    /// </summary>
     private static string CreateUniqueQqId()
     {
         return "99" + Guid.NewGuid().ToString("N")[..14];
     }
 
+    /// <summary>
+    /// Captures login credentials and payload needed by follow-up authenticated assertions.
+    /// </summary>
     private sealed record LoginResult(string Token, JsonDocument Json);
 
+    /// <summary>
+    /// Hosts the Auth service with test configuration and the shared database.
+    /// </summary>
     private sealed class AuthServiceFactory(string connectionString) : WebApplicationFactory<AuthServiceProgram>
     {
+        /// <summary>
+        /// Injects integration-test configuration before the Auth service starts.
+        /// </summary>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -347,10 +407,16 @@ public sealed class AuthApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Hosts the API service and routes its Auth service client to the in-memory Auth host.
+    /// </summary>
     private sealed class ApiServiceFactory(
         string connectionString,
         AuthServiceFactory authFactory) : WebApplicationFactory<Program>
     {
+        /// <summary>
+        /// Injects configuration and replaces the Auth service HTTP client for test isolation.
+        /// </summary>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -366,6 +432,9 @@ public sealed class AuthApiTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Creates shared service configuration used by the API and Auth test hosts.
+    /// </summary>
     private static Dictionary<string, string?> CreateConfiguration(string connectionString)
     {
         return new Dictionary<string, string?>

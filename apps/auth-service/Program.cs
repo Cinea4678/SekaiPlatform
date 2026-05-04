@@ -28,4 +28,7 @@ app.MapAuthEndpoints();
 
 app.Run();
 
+/// <summary>
+/// ASP.NET Core entry point marker for Auth Service hosting and tests.
+/// </summary>
 public partial class Program;

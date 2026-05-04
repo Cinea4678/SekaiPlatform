@@ -2,8 +2,16 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds platform source story drafts from Moe Sekai master data.
+/// </summary>
 public sealed class MoeSekaiCatalogBuilder
 {
+    /// <summary>
+    /// Builds de-duplicated story synchronization drafts for all supported source story types.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <returns>Story sync drafts keyed by story type and scenario ID.</returns>
     public IReadOnlyList<StorySyncDraft> Build(MoeSekaiMasterData masterData)
     {
         var eventsById = masterData.Events
@@ -34,6 +42,11 @@ public sealed class MoeSekaiCatalogBuilder
             .ToArray();
     }
 
+    /// <summary>
+    /// Gets the platform grouping category for an area talk action set.
+    /// </summary>
+    /// <param name="actionSet">Moe Sekai action set master record.</param>
+    /// <returns>The area talk category, or an empty string when unsupported.</returns>
     public static string GetAreaTalkCategory(JsonElement actionSet)
     {
         return AreaTalkCatalogBuilder.GetCategory(actionSet);

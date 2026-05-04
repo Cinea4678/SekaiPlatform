@@ -2,8 +2,19 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Downloads scenario JSON assets from Moe Sekai asset mirrors.
+/// </summary>
+/// <param name="httpClient">HTTP client configured for scenario asset requests.</param>
+/// <param name="options">Moe Sekai source synchronization options.</param>
 public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSourceSyncOptions options)
 {
+    /// <summary>
+    /// Downloads a scenario asset from the first reachable configured mirror.
+    /// </summary>
+    /// <param name="download">Scenario download descriptor built from master data.</param>
+    /// <param name="cancellationToken">Token used to cancel mirror requests.</param>
+    /// <returns>The downloaded scenario JSON and URL that served it.</returns>
     public async Task<DownloadedScenario> DownloadAsync(
         ScenarioDownload download,
         CancellationToken cancellationToken)
@@ -41,6 +52,11 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
             $"Failed to download scenario {download.StoryType}:{download.ScenarioId}.");
     }
 
+    /// <summary>
+    /// Builds the Moe Sekai asset-relative path for a scenario descriptor.
+    /// </summary>
+    /// <param name="download">Scenario download descriptor.</param>
+    /// <returns>The asset-relative scenario JSON path.</returns>
     public static string BuildRelativePath(ScenarioDownload download)
     {
         return download.StoryType switch
@@ -59,6 +75,11 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
         };
     }
 
+    /// <summary>
+    /// Requires and escapes the assetbundle name used in a scenario path.
+    /// </summary>
+    /// <param name="download">Scenario download descriptor.</param>
+    /// <returns>The escaped assetbundle path segment.</returns>
     private static string RequireAssetbundleName(ScenarioDownload download)
     {
         return MoeSekaiUrlSafety.RequirePathSegment(
@@ -68,6 +89,11 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
             download.ScenarioId);
     }
 
+    /// <summary>
+    /// Requires and escapes the scenario ID used in a scenario path.
+    /// </summary>
+    /// <param name="download">Scenario download descriptor.</param>
+    /// <returns>The escaped scenario ID path segment.</returns>
     private static string RequireScenarioId(ScenarioDownload download)
     {
         return MoeSekaiUrlSafety.RequirePathSegment(
@@ -77,6 +103,11 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
             download.ScenarioId);
     }
 
+    /// <summary>
+    /// Requires the area talk group ID used in an area talk asset path.
+    /// </summary>
+    /// <param name="download">Scenario download descriptor.</param>
+    /// <returns>The non-negative area talk group ID.</returns>
     private static int RequireGroupId(ScenarioDownload download)
     {
         return download.GroupId is null or < 0
@@ -85,6 +116,12 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
             : download.GroupId.Value;
     }
 
+    /// <summary>
+    /// Appends an asset-relative path to a base URL.
+    /// </summary>
+    /// <param name="baseUrl">Configured asset base URL.</param>
+    /// <param name="path">Asset-relative path.</param>
+    /// <returns>The combined absolute URL string.</returns>
     private static string CombineUrl(string baseUrl, string path)
     {
         return baseUrl.EndsWith("/", StringComparison.Ordinal)
@@ -93,8 +130,20 @@ public sealed class MoeSekaiScenarioClient(HttpClient httpClient, MoeSekaiSource
     }
 }
 
+/// <summary>
+/// Scenario JSON downloaded from a Moe Sekai asset mirror.
+/// </summary>
+/// <param name="Url">Absolute URL that served the scenario JSON.</param>
+/// <param name="Json">Cloned scenario JSON root.</param>
 public sealed record DownloadedScenario(string Url, JsonElement Json);
 
+/// <summary>
+/// Describes how to locate a scenario asset for a source story.
+/// </summary>
+/// <param name="StoryType">Platform story type constant.</param>
+/// <param name="ScenarioId">Moe Sekai scenario ID.</param>
+/// <param name="AssetbundleName">Optional assetbundle name required by most story types.</param>
+/// <param name="GroupId">Optional area talk group ID.</param>
 public sealed record ScenarioDownload(
     string StoryType,
     string ScenarioId,

@@ -1,8 +1,14 @@
 using System.Net.Http.Headers;
 using SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Maps API Service synchronization endpoints that proxy frontend calls to Asset Service.
+/// </summary>
 internal static class SyncProxyEndpoints
 {
+    /// <summary>
+    /// Registers public sync job endpoints for starting and inspecting source sync jobs.
+    /// </summary>
     public static IEndpointRouteBuilder MapSyncProxyEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/sync/jobs", async Task<IResult> (
@@ -54,6 +60,9 @@ internal static class SyncProxyEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Sends a sync request to Asset Service while preserving request body and bearer authentication.
+    /// </summary>
     private static async Task<HttpResponseMessage> SendAssetServiceAsync(
         IHttpClientFactory httpClientFactory,
         HttpContext httpContext,
@@ -87,6 +96,9 @@ internal static class SyncProxyEndpoints
             .SendAsync(request, cancellationToken);
     }
 
+    /// <summary>
+    /// Forwards an internal service response body, content type, and status code.
+    /// </summary>
     private static async Task<IResult> ForwardResponseAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)

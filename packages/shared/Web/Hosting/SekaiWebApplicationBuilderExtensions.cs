@@ -10,10 +10,21 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace SekaiPlatform.Shared.Web;
 
+/// <summary>
+/// Provides shared ASP.NET Core hosting defaults for Sekai Platform services.
+/// </summary>
 public static class SekaiWebApplicationBuilderExtensions
 {
+    /// <summary>
+    /// Minimum UTF-8 byte length required for symmetric JWT signing keys.
+    /// </summary>
     private const int MinimumSigningKeyBytes = 32;
 
+    /// <summary>
+    /// Adds shared logging, request context, health checks, authentication, and authorization defaults.
+    /// </summary>
+    /// <param name="builder">The web application builder to configure.</param>
+    /// <returns>The same builder for chaining.</returns>
     public static WebApplicationBuilder AddSekaiPlatformWebDefaults(this WebApplicationBuilder builder)
     {
         builder.Logging.Configure(options =>
@@ -68,6 +79,14 @@ public static class SekaiWebApplicationBuilderExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Adds an internal HTTP client that propagates platform request context headers.
+    /// </summary>
+    /// <param name="services">The service collection to register the HTTP client into.</param>
+    /// <param name="name">The named HTTP client identifier.</param>
+    /// <param name="configuration">The application configuration containing internal service addresses.</param>
+    /// <param name="configurationKey">The key under <c>InternalServices</c> containing the base address.</param>
+    /// <returns>The HTTP client builder for additional configuration.</returns>
     public static IHttpClientBuilder AddSekaiPlatformInternalHttpClient(
         this IServiceCollection services,
         string name,
@@ -85,6 +104,11 @@ public static class SekaiWebApplicationBuilderExtensions
             .AddHttpMessageHandler<SekaiContextPropagationHandler>();
     }
 
+    /// <summary>
+    /// Adds shared request tracing, error handling, authentication, and authorization middleware.
+    /// </summary>
+    /// <param name="app">The web application to configure.</param>
+    /// <returns>The same application for chaining.</returns>
     public static WebApplication UseSekaiPlatformWebDefaults(this WebApplication app)
     {
         app.Use(async (httpContext, next) =>
@@ -134,6 +158,9 @@ public static class SekaiWebApplicationBuilderExtensions
         return app;
     }
 
+    /// <summary>
+    /// Creates token validation parameters from the configured JWT options.
+    /// </summary>
     private static TokenValidationParameters CreateTokenValidationParameters(SekaiJwtOptions options)
     {
         var signingKey = Encoding.UTF8.GetBytes(options.SigningKey);
@@ -151,6 +178,9 @@ public static class SekaiWebApplicationBuilderExtensions
         };
     }
 
+    /// <summary>
+    /// Validates JWT settings required by shared authentication defaults.
+    /// </summary>
     private static void ValidateJwtOptions(SekaiJwtOptions options)
     {
         var errors = new List<string>();
@@ -181,6 +211,9 @@ public static class SekaiWebApplicationBuilderExtensions
         }
     }
 
+    /// <summary>
+    /// Creates JWT bearer events that read auth cookies and return standard error payloads.
+    /// </summary>
     private static JwtBearerEvents CreateJwtBearerEvents()
     {
         return new JwtBearerEvents
@@ -213,6 +246,9 @@ public static class SekaiWebApplicationBuilderExtensions
         };
     }
 
+    /// <summary>
+    /// Writes a standard authentication or authorization error response when possible.
+    /// </summary>
     private static async Task WriteAuthenticationErrorAsync(
         HttpContext httpContext,
         int statusCode,

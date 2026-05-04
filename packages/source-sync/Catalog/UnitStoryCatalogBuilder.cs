@@ -2,8 +2,17 @@ using System.Text.Json;
 
 namespace SekaiPlatform.SourceSync;
 
+/// <summary>
+/// Builds synchronization drafts for Moe Sekai main unit stories.
+/// </summary>
 internal static class UnitStoryCatalogBuilder
 {
+    /// <summary>
+    /// Enumerates main story drafts from unit story master records.
+    /// </summary>
+    /// <param name="masterData">Downloaded Moe Sekai master data snapshot.</param>
+    /// <param name="unitProfilesByUnit">Unit display names keyed by Moe Sekai unit code.</param>
+    /// <returns>Main unit story synchronization drafts.</returns>
     public static IEnumerable<StorySyncDraft> Build(
         MoeSekaiMasterData masterData,
         IReadOnlyDictionary<string, string?> unitProfilesByUnit)
@@ -71,6 +80,12 @@ internal static class UnitStoryCatalogBuilder
         }
     }
 
+    /// <summary>
+    /// Resolves a unit profile display name from the unit code.
+    /// </summary>
+    /// <param name="unit">Moe Sekai unit code.</param>
+    /// <param name="unitProfilesByUnit">Unit display names keyed by unit code.</param>
+    /// <returns>The unit display name, or <see langword="null"/> when unavailable.</returns>
     private static string? GetUnitProfileName(
         string? unit,
         IReadOnlyDictionary<string, string?> unitProfilesByUnit)
@@ -80,6 +95,11 @@ internal static class UnitStoryCatalogBuilder
             : null;
     }
 
+    /// <summary>
+    /// Enumerates unit story episodes across chaptered and flat master data shapes.
+    /// </summary>
+    /// <param name="unitStory">Moe Sekai unit story master record.</param>
+    /// <returns>Episode records with their assetbundle name and sort order.</returns>
     private static IEnumerable<(JsonElement Episode, string? AssetbundleName, int SortOrder)> EnumerateEpisodes(
         JsonElement unitStory)
     {
