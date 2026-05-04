@@ -4,6 +4,29 @@ PJS 字幕组语言资产检索平台。
 
 当前已完成 Phase 4 外部数据源同步。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
+## 项目进度
+
+```mermaid
+gantt
+    title 一期后端项目进度
+    dateFormat  YYYY-MM-DD
+    axisFormat  %m/%d
+
+    section 已完成
+    Phase 0 仓库基础           :done, p0, 2026-05-03, 1d
+    Phase 1 共享约定           :done, p1, 2026-05-03, 1d
+    Phase 2 数据库             :done, p2, 2026-05-04, 1d
+    Phase 3 鉴权和租户         :done, p3, 2026-05-04, 1d
+    Phase 4 外部数据源同步     :done, p4, 2026-05-04, 1d
+
+    section 待排期
+    Phase 5 搜索索引           :p5, after p4, 1d
+    Phase 6 搜索 API           :p6, after p5, 1d
+    Phase 7 历史译文批量导入   :p7, after p6, 1d
+    Phase 8 剧情详情           :p8, after p7, 1d
+    Phase 9 本地交付           :p9, after p8, 1d
+```
+
 ## 本地依赖
 
 - .NET SDK 10
