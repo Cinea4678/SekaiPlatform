@@ -51,10 +51,11 @@
 - 剧情元信息，例如剧情类型、剧情集、章节标题、剧情标题、说话人、行号。
 
 剧情类型至少覆盖活动剧情和卡面剧情。
+阶段四同步设计按活动剧情、主线剧情、卡面剧情、区域对话和特殊剧情组织原文数据；具体落库层级见 @data-model.md。
 
 ## 数据来源和同步
 
-原文剧情数据来自公共外部数据源，由平台定时同步。外部数据源的具体信息见 @external-api.md。
+原文剧情数据来自公共外部数据源，由平台定时同步。外部数据源的总体信息见 @external-api.md；Moe Sekai 对接方案见 @external-api-moe.md。
 
 同步触发方式：
 
@@ -65,6 +66,7 @@
 
 - 拉取上游剧情列表、剧情详情和原文行。
 - 将外部数据转换为平台内部数据模型。
+- 按 `story_groups -> stories -> story_source_lines` 写入可导航剧情集合、具体剧情和原文行。
 - 写入 PostgreSQL。
 - 更新 Elasticsearch 索引。
 - 记录同步日志、开始时间、结束时间、结果状态和错误信息。
@@ -275,6 +277,8 @@ Sync Worker -------- External Data Source
 
 - 按计划调用外部数据源。
 - 同步原文剧情数据。
+- 下载 master JSON 和 scenario JSON。
+- 解析活动剧情、主线剧情、卡面剧情、区域对话和特殊剧情。
 - 写入数据库。
 - 更新搜索索引。
 - 记录同步日志和错误。
@@ -342,3 +346,4 @@ Vue 前端规划中，预期后续套在 API Service 入口下统一对外提供
 - 接口设计文档：@interface.md
 - 数据模型设计文档：@data-model.md
 - 外部数据源设计文档：@external-api.md
+- Moe Sekai 对接设计文档：@external-api-moe.md

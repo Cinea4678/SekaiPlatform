@@ -2,12 +2,14 @@
 
 ## 结论
 
-参考 `/Users/zhangyao/build6/SekaiText` 后确认：本平台一期所谓“外部 API”主要不是传统业务 REST API，而是两类公共静态数据源：
+阶段四优先对接 Moe Sekai。Moe Sekai 对接方案使用 Exmeaning master JSON 和资源镜像，具体 URL、字段映射和同步流程见 @external-api-moe.md。
 
-1. Haruki 的 master JSON 接口，用于同步剧情、卡牌、活动、区域对话等元数据。
-2. 游戏资源 CDN，用于按元数据拼接并下载具体剧情 scenario JSON。
+SekaiText 作为补充参考，用于确认 Unity scenario JSON 的解析方式、剧情类型映射和其他资源源站差异。本平台一期所谓“外部 API”主要不是传统业务 REST API，而是两类公共静态数据源：
 
-平台一期同步逻辑应参考 `SekaiText` 的实现方式：先同步 master metadata，再根据剧情类型、索引和章节生成 scenario 资源 URL，下载 Unity 剧情 JSON，解析为平台内部的原文行。
+1. master JSON，用于同步剧情、卡牌、活动、区域对话等元数据。
+2. 游戏资源镜像，用于按元数据拼接并下载具体剧情 scenario JSON。
+
+平台一期同步逻辑固定为：先同步 master metadata，再根据剧情类型、索引和章节生成 scenario 资源 URL，下载 Unity 剧情 JSON，解析为平台内部的原文行。
 
 ## SekaiText 参考文件
 
@@ -188,7 +190,7 @@ Scenario URL 由剧情类型、catalog 元数据、章节编号和 source 共同
 - `WhenFinishCloseWindow != 0` 时追加空行分隔。
 - 解析完成后移除尾部空行。
 
-平台可将解析结果映射为 `story_source_lines`：
+平台将解析结果映射为 `story_source_lines`：
 
 | 字段 | 来源 |
 |---|---|
@@ -215,17 +217,46 @@ https://storage.sekai.best/sekai-jp-assets/voice/{scenarioId}/{voiceId}.mp3
 https://assets.unipjsk.com/voice/{scenarioId}/{voiceId}.mp3
 ```
 
-一期平台以语言资产检索为目标，语音资源可先作为 metadata 保留，不作为必须下载的资产。
+一期平台以语言资产检索为目标，语音资源作为 metadata 保留，不作为必须下载的资产。
 
-## 对本平台的设计建议
+## 阶段四实现指令
 
-一期实现建议：
-
-1. Sync Worker 同步 master JSON，保存原始响应和转换后的 catalog。
-2. Asset Service 或 Sync Worker 根据 catalog 生成 scenario 下载任务。
+1. Sync Worker 同步 master JSON，保存原始响应和转换后的导航数据。
+2. Asset Service 或 Sync Worker 根据导航数据生成 scenario 下载任务。
 3. 下载 scenario JSON 后解析为 `story_groups`、`stories`、`story_source_lines`。
-4. 原始 scenario JSON 可作为调试和重建索引的缓存保存。
+4. 原始 scenario JSON 作为调试和重建索引的缓存保存。
 5. 写入 PostgreSQL 后，同步更新 Elasticsearch 统一索引。
+
+### 剧情层级映射
+
+本平台统一使用 `story_groups -> stories -> story_source_lines` 保存游戏剧情：
+
+| 层级 | 含义 | 示例 |
+|---|---|---|
+| `story_groups` | 可导航的剧情集合 | 一个活动、一个 unit、一张卡、一个区域对话分类、一个特殊剧情条目。 |
+| `stories` | 具体可打开的一话或一条对话 | 活动第 1 话、主线某一话、卡面前篇、某条区域对话。 |
+| `story_source_lines` | 解析后的原文行 | 台词、场景提示、选项、分隔行。 |
+
+具体映射规则见 @data-model.md。
+
+### 阶段四同步范围
+
+阶段四同步以下 master JSON：
+
+| 文件 | 用途 |
+|---|---|
+| `events.json` | 活动基础信息。 |
+| `eventStories.json` | 活动剧情章节和 `scenarioId`。 |
+| `unitStories.json` | 主线剧情章节和 `scenarioId`。 |
+| `unitStoryEpisodeGroups.json` | 主线剧情章节分组。 |
+| `cards.json` | 卡牌基础信息。 |
+| `cardEpisodes.json` | 卡面剧情前后篇和 `scenarioId`。 |
+| `actionSets.json` | 区域对话、开放条件和 `scenarioId`。 |
+| `character2ds.json` | 角色 2D ID 映射。 |
+| `mobCharacters.json` | mob 角色名称映射。 |
+| `specialStories.json` | 特殊剧情章节和 `scenarioId`。 |
+
+阶段四下载并解析 event / unit / card / area / special 对应的 scenario JSON。语音、BGM、背景、活动概要和社区译文先作为 metadata 或后续增强能力处理。
 
 需要注意：
 
@@ -233,4 +264,4 @@ https://assets.unipjsk.com/voice/{scenarioId}/{voiceId}.mp3
 - 同步逻辑需要支持超时、失败重试和部分失败记录。
 - master JSON 可能是数组，也可能是 `{ data: ... }` 包裹结构。
 - 不同 source 的路径前缀和文件后缀不同，不能只替换 base URL。
-- 当前 `SekaiText` 中 `greets` 的同步逻辑未完整实现，本平台一期不应将主界面语音作为核心同步范围。
+- 当前 `SekaiText` 中 `greets` 的同步逻辑未完整实现，本平台一期不将主界面语音作为核心同步范围。
