@@ -105,6 +105,32 @@ public static class SekaiWebApplicationBuilderExtensions
     }
 
     /// <summary>
+    /// Adds the typed client used to request Search Service index refresh operations.
+    /// </summary>
+    /// <param name="services">The service collection to register the client into.</param>
+    /// <param name="configuration">The application configuration containing Search Service and token settings.</param>
+    /// <returns>The HTTP client builder for additional configuration.</returns>
+    public static IHttpClientBuilder AddSekaiPlatformSearchIndexRefreshClient(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var baseAddress = configuration["InternalServices:SearchService"];
+        if (string.IsNullOrWhiteSpace(baseAddress))
+        {
+            throw new InvalidOperationException("Missing InternalServices:SearchService configuration.");
+        }
+
+        services.Configure<SearchIndexMaintenanceOptions>(
+            configuration.GetSection(SearchIndexMaintenanceOptions.SectionName));
+
+        return services.AddHttpClient<SearchIndexRefreshClient>(client =>
+        {
+            client.BaseAddress = new Uri(baseAddress);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+    }
+
+    /// <summary>
     /// Adds shared request tracing, error handling, authentication, and authorization middleware.
     /// </summary>
     /// <param name="app">The web application to configure.</param>

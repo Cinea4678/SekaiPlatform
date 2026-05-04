@@ -19,6 +19,8 @@ internal static class SyncEndpoints
             SekaiPlatformDbContext dbContext,
             SourceStorySyncRunner syncRunner,
             ICurrentRequestContextAccessor contextAccessor,
+            SearchIndexRefreshClient searchIndexRefreshClient,
+            ILogger<SourceStorySyncRunner> logger,
             CancellationToken cancellationToken) =>
         {
             if (!await IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
@@ -39,17 +41,19 @@ internal static class SyncEndpoints
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Unsupported sync source.");
             }
 
-            SyncJob job;
+            SourceStorySyncRunResult result;
             try
             {
-                job = await syncRunner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+                result = await syncRunner.RunWithResultAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
             }
             catch (SourceSyncAlreadyRunningException)
             {
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status409Conflict, "Source story sync is already running.");
             }
 
-            return Results.Json(SyncEndpointResults.ToResponse(job));
+            await RefreshStoryIndexesAsync(result, searchIndexRefreshClient, logger, CancellationToken.None);
+
+            return Results.Json(SyncEndpointResults.ToResponse(result.Job));
         }).RequireAuthorization(SekaiAuthorizationPolicies.TenantSelected);
 
         app.MapGet("/internal/sync/jobs", async Task<IResult> (
@@ -115,6 +119,30 @@ internal static class SyncEndpoints
             .SingleOrDefaultAsync(cancellationToken);
 
         return role is UserTenantRoles.Admin or UserTenantRoles.SuperAdmin;
+    }
+
+    /// <summary>
+    /// Requests a search index refresh for stories changed by a successful synchronization run.
+    /// </summary>
+    private static async Task RefreshStoryIndexesAsync(
+        SourceStorySyncRunResult result,
+        SearchIndexRefreshClient searchIndexRefreshClient,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (result.Job.Status != SourceSyncConstants.StatusSucceeded || result.SyncedStoryIds.Count == 0)
+        {
+            return;
+        }
+
+        var refresh = await searchIndexRefreshClient.RefreshStoriesAsync(result.SyncedStoryIds, cancellationToken);
+        if (!refresh.Success)
+        {
+            logger.LogError(
+                "Search index refresh failed. status:{StatusCode} body:{Body}",
+                refresh.StatusCode,
+                refresh.Body);
+        }
     }
 
     /// <summary>

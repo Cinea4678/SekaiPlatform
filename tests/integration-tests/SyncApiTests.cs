@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SekaiPlatform.Database;
+using SekaiPlatform.Shared.Web;
 using SekaiPlatform.SourceSync;
 using AssetServiceProgram = AssetService::Program;
 using AuthServiceProgram = AuthService::Program;
@@ -25,10 +26,13 @@ namespace SekaiPlatform.IntegrationTests;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SyncApiTests : IDisposable
 {
+    private const string MaintenanceToken = "integration-search-index-token";
+
     private readonly IntegrationTestDatabaseFixture fixture;
     private readonly AuthServiceFactory authFactory;
     private readonly AssetServiceFactory assetFactory;
     private readonly ApiServiceFactory apiFactory;
+    private readonly FakeSearchIndexHandler searchIndexHandler = new();
 
     /// <summary>
     /// Creates service hosts wired to a fake Moe Sekai source and the shared database.
@@ -39,7 +43,8 @@ public sealed class SyncApiTests : IDisposable
         authFactory = new AuthServiceFactory(fixture.ConnectionString);
         assetFactory = new AssetServiceFactory(
             fixture.ConnectionString,
-            new FakeMoeSekaiHandler("scenario_event_success", scenarioSucceeds: true));
+            new FakeMoeSekaiHandler("scenario_event_success", scenarioSucceeds: true),
+            searchIndexHandler);
         apiFactory = new ApiServiceFactory(fixture.ConnectionString, authFactory, assetFactory);
     }
 
@@ -73,6 +78,8 @@ public sealed class SyncApiTests : IDisposable
         var story = await dbContext.Stories.SingleAsync(item => item.ScenarioId == "scenario_event_success");
         Assert.Equal(SourceSyncConstants.EventStory, story.StoryType);
         Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(item => item.StoryId == story.Id));
+        AssertStoryRefreshRequested(searchIndexHandler, story.Id);
+        Assert.All(searchIndexHandler.MaintenanceTokens, token => Assert.Equal(MaintenanceToken, token));
 
         using var list = await SendWithBearerAsync(client, HttpMethod.Get, "/api/sync/jobs?limit=1", login.Token);
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
@@ -245,6 +252,19 @@ public sealed class SyncApiTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that Asset Service requested an all-scope search refresh for the synchronized story.
+    /// </summary>
+    private static void AssertStoryRefreshRequested(FakeSearchIndexHandler searchIndexHandler, long storyId)
+    {
+        var body = Assert.Single(searchIndexHandler.RebuildBodies);
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal("all", json.RootElement.GetProperty("scope").GetString());
+        Assert.Contains(
+            storyId,
+            json.RootElement.GetProperty("story_ids").EnumerateArray().Select(item => item.GetInt64()));
+    }
+
+    /// <summary>
     /// Captures login credentials and payload needed by follow-up authenticated assertions.
     /// </summary>
     private sealed record LoginResult(string Token, JsonDocument Json);
@@ -271,7 +291,8 @@ public sealed class SyncApiTests : IDisposable
     /// </summary>
     private sealed class AssetServiceFactory(
         string connectionString,
-        FakeMoeSekaiHandler handler) : WebApplicationFactory<AssetServiceProgram>
+        FakeMoeSekaiHandler handler,
+        FakeSearchIndexHandler searchIndexHandler) : WebApplicationFactory<AssetServiceProgram>
     {
         /// <summary>
         /// Injects configuration and replaces upstream Moe Sekai clients with fake HTTP clients.
@@ -289,7 +310,52 @@ public sealed class SyncApiTests : IDisposable
                 services.AddSingleton(options);
                 services.AddSingleton(new MoeSekaiMasterClient(new HttpClient(handler), options));
                 services.AddSingleton(new MoeSekaiScenarioClient(new HttpClient(handler), options));
+                services.AddHttpClient<SearchIndexRefreshClient>()
+                    .ConfigurePrimaryHttpMessageHandler(() => searchIndexHandler);
             });
+        }
+    }
+
+    /// <summary>
+    /// Captures search index refresh calls made by Asset Service after successful sync.
+    /// </summary>
+    private sealed class FakeSearchIndexHandler : HttpMessageHandler
+    {
+        /// <summary>
+        /// Gets captured search index rebuild request bodies.
+        /// </summary>
+        public List<string> RebuildBodies { get; } = [];
+
+        /// <summary>
+        /// Gets captured maintenance tokens sent by Asset Service.
+        /// </summary>
+        public List<string?> MaintenanceTokens { get; } = [];
+
+        /// <summary>
+        /// Records rebuild requests and returns a successful maintenance response.
+        /// </summary>
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            if (request.RequestUri?.AbsolutePath == "/internal/search/index/rebuild")
+            {
+                MaintenanceTokens.Add(request.Headers.TryGetValues(SekaiHeaders.MaintenanceToken, out var values)
+                    ? values.Single()
+                    : null);
+                RebuildBodies.Add(request.Content is null
+                    ? ""
+                    : await request.Content.ReadAsStringAsync(cancellationToken));
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        """{"scope":"all","deleted":true,"source_indexed":3,"translation_indexed":0}""",
+                        Encoding.UTF8,
+                        "application/json")
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
     }
 
@@ -449,6 +515,7 @@ public sealed class SyncApiTests : IDisposable
             ["InternalServices:AuthService"] = "http://auth-service",
             ["InternalServices:AssetService"] = "http://asset-service",
             ["InternalServices:SearchService"] = "http://search-service",
+            ["SearchIndex:MaintenanceToken"] = MaintenanceToken,
             ["Jwt:Issuer"] = "sekai-platform",
             ["Jwt:Audience"] = "sekai-platform",
             ["Jwt:SigningKey"] = "replace-with-local-development-signing-key",

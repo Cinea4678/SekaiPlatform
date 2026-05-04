@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\database\SekaiPlatform.Database.csproj" />
     <ProjectReference Include="..\..\packages\source-sync\SekaiPlatform.SourceSync.csproj" />
     <ProjectReference Include="..\..\apps\asset-service\SekaiPlatform.AssetService.csproj" Aliases="AssetService" />
+    <ProjectReference Include="..\..\apps\search-service\SekaiPlatform.SearchService.csproj" Aliases="SearchService" />
   </ItemGroup>
 
 </Project>

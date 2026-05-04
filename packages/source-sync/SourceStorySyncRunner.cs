@@ -4,7 +4,7 @@ using SekaiPlatform.Database;
 namespace SekaiPlatform.SourceSync;
 
 /// <summary>
-/// Runs the Phase 4 source story synchronization workflow against the platform database.
+/// Runs the source story synchronization workflow against the platform database.
 /// </summary>
 /// <param name="dbContext">Database context used for sync jobs and story writes.</param>
 /// <param name="masterClient">Client used to fetch Moe Sekai master data.</param>
@@ -30,6 +30,18 @@ public sealed class SourceStorySyncRunner(
     /// <returns>The persisted sync job record.</returns>
     public async Task<SyncJob> RunAsync(string triggerType, CancellationToken cancellationToken)
     {
+        var result = await RunWithResultAsync(triggerType, cancellationToken);
+        return result.Job;
+    }
+
+    /// <summary>
+    /// Executes one source story sync job and returns the changed stories alongside the job record.
+    /// </summary>
+    /// <param name="triggerType">Trigger type stored on the sync job.</param>
+    /// <param name="cancellationToken">Token used to cancel the sync workflow.</param>
+    /// <returns>The persisted sync job record and successfully synchronized story identifiers.</returns>
+    public async Task<SourceStorySyncRunResult> RunWithResultAsync(string triggerType, CancellationToken cancellationToken)
+    {
         var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
         if (!lockAcquired)
         {
@@ -37,6 +49,7 @@ public sealed class SourceStorySyncRunner(
         }
 
         SyncJob? job = null;
+        IReadOnlyList<long> syncedStoryIds = [];
         try
         {
             var now = DateTimeOffset.UtcNow;
@@ -63,6 +76,7 @@ public sealed class SourceStorySyncRunner(
             var gameCharacters = UnityScenarioParser.BuildGameCharacterMap(masterData.GameCharacters);
 
             var results = await SyncDraftsAsync(drafts, character2ds, mobCharacters, gameCharacters, cancellationToken);
+            syncedStoryIds = results.SyncedStoryIds;
 
             var allScenariosFailed = drafts.Count > 0 && results.SyncedStories == 0 && results.Failures.Count > 0;
             job.Status = allScenariosFailed ? SourceSyncConstants.StatusFailed : SourceSyncConstants.StatusSucceeded;
@@ -110,7 +124,9 @@ public sealed class SourceStorySyncRunner(
             await ReleaseSyncLockAsync();
         }
 
-        return job ?? throw new InvalidOperationException("Source story sync job was not created.");
+        return new SourceStorySyncRunResult(
+            job ?? throw new InvalidOperationException("Source story sync job was not created."),
+            syncedStoryIds);
     }
 
     /// <summary>
@@ -153,7 +169,7 @@ public sealed class SourceStorySyncRunner(
     /// <param name="mobCharacters">Mob character names keyed by mob character ID.</param>
     /// <param name="gameCharacters">Game character names keyed by game character ID.</param>
     /// <param name="cancellationToken">Token used to cancel database and network operations.</param>
-    /// <returns>Aggregate counts and failed scenario samples.</returns>
+    /// <returns>Aggregate counts, synchronized story identifiers, and failed scenario samples.</returns>
     private async Task<SyncDraftResults> SyncDraftsAsync(
         IReadOnlyList<StorySyncDraft> drafts,
         IReadOnlyDictionary<int, Character2dInfo> character2ds,
@@ -167,6 +183,7 @@ public sealed class SourceStorySyncRunner(
 
         var syncedStories = 0;
         var sourceLines = 0;
+        var syncedStoryIds = new List<long>();
         var failures = new List<ScenarioFailure>();
         foreach (var draft in drafts)
         {
@@ -210,10 +227,11 @@ public sealed class SourceStorySyncRunner(
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             syncedStories++;
+            syncedStoryIds.Add(story.Id);
             sourceLines += lines.Count;
         }
 
-        return new SyncDraftResults(syncedStories, sourceLines, failures);
+        return new SyncDraftResults(syncedStories, sourceLines, syncedStoryIds, failures);
     }
 
     /// <summary>
@@ -325,11 +343,22 @@ public sealed record ScenarioFailure(
 /// </summary>
 /// <param name="SyncedStories">Number of stories whose source lines were replaced.</param>
 /// <param name="SourceLines">Number of source lines inserted.</param>
+/// <param name="SyncedStoryIds">Story identifiers whose source lines were replaced.</param>
 /// <param name="Failures">Failed scenario samples.</param>
 internal sealed record SyncDraftResults(
     int SyncedStories,
     int SourceLines,
+    IReadOnlyList<long> SyncedStoryIds,
     IReadOnlyList<ScenarioFailure> Failures);
+
+/// <summary>
+/// Result of running a source story synchronization workflow.
+/// </summary>
+/// <param name="Job">Persisted sync job record.</param>
+/// <param name="SyncedStoryIds">Story identifiers whose source lines were successfully replaced.</param>
+public sealed record SourceStorySyncRunResult(
+    SyncJob Job,
+    IReadOnlyList<long> SyncedStoryIds);
 
 /// <summary>
 /// Indicates that another source story sync job already holds the advisory lock.

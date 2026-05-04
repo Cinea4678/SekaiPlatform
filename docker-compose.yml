@@ -16,16 +16,22 @@ services:
       retries: 5
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    build:
+      context: deploy/elasticsearch
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
       ES_JAVA_OPTS: "${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}"
       CLI_JAVA_OPTS: "${ELASTICSEARCH_CLI_JAVA_OPTS:-}"
     ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "${ELASTICSEARCH_BIND_HOST:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   api-service:
     platform: linux/amd64
@@ -35,7 +41,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-sekai_platform};Username=${POSTGRES_USER:-sekai_platform};Password=${POSTGRES_PASSWORD:-sekai_platform}"
-      Elasticsearch__Url: "http://elasticsearch:9200"
       InternalServices__AuthService: "http://auth-service:8080"
       InternalServices__AssetService: "http://asset-service:8080"
       InternalServices__SearchService: "http://search-service:8080"
@@ -50,8 +55,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      elasticsearch:
-        condition: service_started
 
   auth-service:
     platform: linux/amd64
@@ -77,6 +80,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-sekai_platform};Username=${POSTGRES_USER:-sekai_platform};Password=${POSTGRES_PASSWORD:-sekai_platform}"
       InternalServices__SearchService: "http://search-service:8080"
+      SearchIndex__MaintenanceToken: ${SEARCH_INDEX_MAINTENANCE_TOKEN:-replace-with-local-development-search-index-key}
       Jwt__Issuer: ${JWT_ISSUER:-sekai-platform}
       Jwt__Audience: ${JWT_AUDIENCE:-sekai-platform}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-replace-with-local-development-signing-key}
@@ -93,13 +97,18 @@ services:
       dockerfile: apps/search-service/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-sekai_platform};Username=${POSTGRES_USER:-sekai_platform};Password=${POSTGRES_PASSWORD:-sekai_platform}"
       Elasticsearch__Url: "http://elasticsearch:9200"
+      Elasticsearch__IndexName: "sekai-language-assets-v1"
+      SearchIndex__MaintenanceToken: ${SEARCH_INDEX_MAINTENANCE_TOKEN:-replace-with-local-development-search-index-key}
       Jwt__Issuer: ${JWT_ISSUER:-sekai-platform}
       Jwt__Audience: ${JWT_AUDIENCE:-sekai-platform}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-replace-with-local-development-signing-key}
     depends_on:
+      postgres:
+        condition: service_healthy
       elasticsearch:
-        condition: service_started
+        condition: service_healthy
 
   sync-worker:
     platform: linux/amd64
@@ -110,6 +119,7 @@ services:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-sekai_platform};Username=${POSTGRES_USER:-sekai_platform};Password=${POSTGRES_PASSWORD:-sekai_platform}"
       InternalServices__SearchService: "http://search-service:8080"
+      SearchIndex__MaintenanceToken: ${SEARCH_INDEX_MAINTENANCE_TOKEN:-replace-with-local-development-search-index-key}
     depends_on:
       postgres:
         condition: service_healthy

@@ -116,6 +116,10 @@ Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索
 - 译文文档必须绑定 `tenant_id`。
 - 查询时根据当前租户同时检索共享原文和当前租户译文。
 
+统一索引名默认为 `sekai-language-assets-v1`。文档 ID 使用稳定前缀区分资产类型：原文为 `source:{source_line_id}`，译文为 `translation:{translation_line_id}`。索引字段至少包括 `asset_type`、`tenant_id`、`story_id`、`story_type`、`scenario_id`、`story_title`、`story_group_id`、`story_group_title`、`translation_version_id`、`source_line_id`、`line_no`、`speaker` 和 `text`。
+
+Search Service 提供内部索引维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围从 PostgreSQL 重建索引。该接口属于服务间维护接口，必须携带内部维护 token，不作为一期前端公开 API；Phase 6 的 `/api/search` 只读取该索引。
+
 分词组件：
 
 | 语言/能力 | 组件 |

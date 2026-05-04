@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddSekaiPlatformWebDefaults();
 builder.Services.AddSekaiPlatformDatabase(builder.Configuration);
 builder.Services.AddSekaiPlatformInternalHttpClient("search-service", builder.Configuration, "SearchService");
+builder.Services.AddSekaiPlatformSearchIndexRefreshClient(builder.Configuration);
 builder.Services.AddMoeSekaiSourceSync(builder.Configuration);
 
 var app = builder.Build();

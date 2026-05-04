@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 4 外部数据源同步。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 5 搜索索引。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 项目进度
 
@@ -18,9 +18,9 @@ gantt
     Phase 2 数据库             :done, p2, 2026-05-04, 1d
     Phase 3 鉴权和租户         :done, p3, 2026-05-04, 1d
     Phase 4 外部数据源同步     :done, p4, 2026-05-04, 1d
+    Phase 5 搜索索引           :done, p5, 2026-05-05, 1d
 
     section 待排期
-    Phase 5 搜索索引           :p5, after p4, 1d
     Phase 6 搜索 API           :p6, after p5, 1d
     Phase 7 历史译文批量导入   :p7, after p6, 1d
     Phase 8 剧情详情           :p8, after p7, 1d
@@ -72,7 +72,7 @@ SEED_ADMIN_PASSWORD=your-local-admin-password
 |---|---|
 | API Service | http://localhost:8080 |
 | PostgreSQL | localhost:5432 |
-| Elasticsearch | http://localhost:9200 |
+| Elasticsearch | http://127.0.0.1:9200 |
 
 API Service 健康检查：
 
@@ -108,7 +108,13 @@ curl http://localhost:8080/api/sync/jobs \
 
 Sync Worker 会每天自动执行一次原文同步，默认本地时间 `04:00`。可通过配置 `MoeSekai:ScheduledLocalTime` 调整。
 
-同步结果写入 `story_groups`、`stories`、`story_source_lines` 和 `sync_jobs`。部分 scenario 下载或解析失败时会记录失败样本并继续处理其他剧情；如果没有任何 scenario 成功同步，则任务标记为失败。
+同步结果写入 `story_groups`、`stories`、`story_source_lines` 和 `sync_jobs`。同步成功后会请求 Search Service 刷新对应剧情的原文和译文索引。部分 scenario 下载或解析失败时会记录失败样本并继续处理其他剧情；如果没有任何 scenario 成功同步，则任务标记为失败。
+
+## 搜索索引
+
+Phase 5 已实现 Elasticsearch 统一索引 `sekai-language-assets-v1`。Docker Compose 使用 `deploy/elasticsearch/Dockerfile` 构建 Elasticsearch 8.15.3，并安装 `analysis-smartcn`、`analysis-kuromoji` 和 `analysis-icu`。
+
+Search Service 提供内部维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围重建索引。该接口不通过 API Service 对外暴露，调用方必须携带 `X-Sekai-Maintenance-Token`，本地令牌由 `SEARCH_INDEX_MAINTENANCE_TOKEN` 配置。
 
 如果 Apple Silicon / M 系列机器上 Elasticsearch 因 JVM `SIGILL` 退出，可在 `.env` 中改为：
 
@@ -184,6 +190,7 @@ deploy/
 - [外部数据源](docs/design/external-api.md)
 - [实施计划](docs/plan/index.md)
 - [Phase 4 完成记录](docs/plan/phase-4-status.md)
+- [Phase 5 完成记录](docs/plan/phase-5-status.md)
 
 ## 约定
 
