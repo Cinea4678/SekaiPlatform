@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 3 鉴权和租户。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 4 外部数据源同步。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 本地依赖
 
@@ -63,6 +63,30 @@ curl http://localhost:8080/health
 curl http://localhost:8080/api/internal-services/health
 ```
 
+## 原文同步
+
+Phase 4 已实现 Moe Sekai / Exmeaning 外部数据源同步，覆盖活动剧情、主线剧情、卡面剧情、区域对话和特殊剧情。
+
+手动同步通过 API Service 触发，要求已登录、已选择租户，且当前用户是该租户的 `admin` 或 `super_admin`：
+
+```bash
+curl -X POST http://localhost:8080/api/sync/jobs \
+  -H 'Authorization: Bearer <access-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"source":"moesekai"}'
+```
+
+查询同步任务：
+
+```bash
+curl http://localhost:8080/api/sync/jobs \
+  -H 'Authorization: Bearer <access-token>'
+```
+
+Sync Worker 会每天自动执行一次原文同步，默认本地时间 `04:00`。可通过配置 `MoeSekai:ScheduledLocalTime` 调整。
+
+同步结果写入 `story_groups`、`stories`、`story_source_lines` 和 `sync_jobs`。部分 scenario 下载或解析失败时会记录失败样本并继续处理其他剧情；如果没有任何 scenario 成功同步，则任务标记为失败。
+
 如果 Apple Silicon / M 系列机器上 Elasticsearch 因 JVM `SIGILL` 退出，可在 `.env` 中改为：
 
 ```bash
@@ -120,6 +144,7 @@ apps/
   sync-worker/
 packages/
   shared/
+  source-sync/
 database/
   migrations/
 tests/
@@ -135,6 +160,7 @@ deploy/
 - [数据模型](docs/design/data-model.md)
 - [外部数据源](docs/design/external-api.md)
 - [实施计划](docs/plan/index.md)
+- [Phase 4 完成记录](docs/plan/phase-4-status.md)
 
 ## 约定
 
