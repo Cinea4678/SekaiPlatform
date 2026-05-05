@@ -1,12 +1,12 @@
-# Phase 9 准备记录
+# 部署交付准备记录
 
 ## 状态
 
-Phase 9：本地交付与部署基线准备中。
+部署交付与部署基线准备中。
 
 ## 范围
 
-Phase 9 在 Phase 8 完整后端链路基础上收口交付入口：
+在完整后端链路基础上收口交付入口：
 
 - 本地 Docker Compose 启动。
 - 本地内部 token 密钥生成。
@@ -26,7 +26,7 @@ Phase 9 在 Phase 8 完整后端链路基础上收口交付入口：
 - 新增 `deploy/server.env.example`，记录服务器 `.env` 所需变量。
 - 新增 `docs/deploy/docker-compose-github-actions.md`，记录 Compose 与 GitHub Actions 部署约定。
 - 新增 `scripts/generate-internal-auth-keys.sh`，生成本地和服务器可用的内部 token RSA 密钥变量。
-- 新增 `scripts/phase9-smoke.sh`，覆盖健康检查、登录、租户、同步列表、搜索、剧情详情和译文导入的冒烟路径。
+- 新增 `scripts/deployment-smoke.sh`，覆盖健康检查、登录、租户、同步列表、搜索、剧情详情和译文导入的冒烟路径。
 
 ## 部署约定
 
@@ -43,7 +43,7 @@ Phase 9 在 Phase 8 完整后端链路基础上收口交付入口：
 - 生产数据库迁移入口。
 - 服务器反向代理配置。
 - 服务器备份和恢复脚本。
-- Phase 9 冒烟测试在真实 Compose 环境跑通记录。
+- 部署冒烟测试在真实 Compose 环境跑通记录。
 
 ## 验证
 

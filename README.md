@@ -24,7 +24,7 @@ gantt
     Phase 8 剧情详情           :done, p8, 2026-05-05, 1d
 
     section 进行中
-    Phase 9 本地交付与部署基线 :active, p9, after p8, 1d
+    部署交付                 :active, deploy, after p8, 1d
 ```
 
 ## 本地依赖
@@ -288,10 +288,10 @@ POSTGRES_PASSWORD=sekai_platform dotnet dotnet-ef database update --project data
 dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj
 ```
 
-运行 Phase 9 冒烟测试：
+运行部署冒烟测试：
 
 ```bash
-SEED_ADMIN_PASSWORD=your-local-admin-password scripts/phase9-smoke.sh
+SEED_ADMIN_PASSWORD=your-local-admin-password scripts/deployment-smoke.sh
 ```
 
 集成测试会向当前 PostgreSQL 环境 upsert 一组专用测试数据：
@@ -336,7 +336,7 @@ deploy/
 - [Phase 6 完成记录](docs/plan/phase-6-status.md)
 - [Phase 7 完成记录](docs/plan/phase-7-status.md)
 - [Phase 8 完成记录](docs/plan/phase-8-status.md)
-- [Phase 9 准备记录](docs/plan/phase-9-status.md)
+- [部署交付准备记录](docs/plan/phase-9-status.md)
 - [Docker Compose 与 GitHub Actions 部署说明](docs/deploy/docker-compose-github-actions.md)
 
 ## 约定

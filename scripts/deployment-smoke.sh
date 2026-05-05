@@ -13,7 +13,7 @@ if [[ -z "$SMOKE_PASSWORD" ]]; then
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  printf 'jq is required for Phase 9 smoke checks.\n' >&2
+  printf 'jq is required for deployment smoke checks.\n' >&2
   exit 1
 fi
 
@@ -94,7 +94,7 @@ if [[ -n "$story_id" ]]; then
       --arg story_type "$story_type" \
       --arg scenario_id "$scenario_id" \
       --argjson line_no "$first_line_no" \
-      '{items:[{story_type:$story_type,scenario_id:$scenario_id,title:"Phase 9 smoke import",lines:[{line_no:$line_no,text:"Phase 9 smoke translation"}]}]}')"
+      '{items:[{story_type:$story_type,scenario_id:$scenario_id,title:"Deployment smoke import",lines:[{line_no:$line_no,text:"Deployment smoke translation"}]}]}')"
     request_json POST /api/import/translation-versions "$tmpdir/import.json" "$token" "$import_body"
     version_id="$(jq -r '.items[0].translation_version_id // empty' "$tmpdir/import.json")"
     test -n "$version_id"
@@ -105,4 +105,4 @@ if [[ -n "$story_id" ]]; then
   fi
 fi
 
-printf 'Phase 9 smoke checks passed for %s\n' "$API_BASE_URL"
+printf 'Deployment smoke checks passed for %s\n' "$API_BASE_URL"

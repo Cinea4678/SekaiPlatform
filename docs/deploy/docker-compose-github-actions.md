@@ -204,10 +204,10 @@ ghcr.io/<owner>/<repo>/elasticsearch:<commit-sha>
 
 ## 8. 首次部署
 
-在 GitHub Actions 页面手动触发 `Phase 9` workflow：
+在 GitHub Actions 页面手动触发 `Production Deploy` workflow：
 
 ```text
-Actions -> Phase 9 -> Run workflow -> main
+Actions -> Production Deploy -> Run workflow -> main
 ```
 
 该 workflow 会重新执行构建和镜像发布，然后执行 deploy job。deploy job 只会通过 SSH 执行服务器脚本。
