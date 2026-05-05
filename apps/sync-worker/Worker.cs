@@ -44,6 +44,10 @@ public class Worker(
             {
                 logger.LogInformation("Scheduled source sync skipped because another source sync is already running.");
             }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Scheduled source sync failed unexpectedly and will be retried on next schedule.");
+            }
         }
     }
 
