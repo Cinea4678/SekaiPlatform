@@ -21,7 +21,7 @@ builder.Services.AddRateLimiter(options =>
     });
     options.AddFixedWindowLimiter("import-write", limiter =>
     {
-        limiter.PermitLimit = 10;
+        limiter.PermitLimit = 60;
         limiter.QueueLimit = 0;
         limiter.Window = TimeSpan.FromMinutes(1);
     });
