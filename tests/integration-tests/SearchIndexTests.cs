@@ -238,10 +238,10 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
     }
 
     /// <summary>
-    /// Rejects internal tokens from actors that cannot rebuild the search index.
+    /// Rejects internal tokens that do not carry the search index rebuild scope.
     /// </summary>
     [Fact]
-    public async Task Rebuild_WithUnauthorizedActor_ReturnsForbidden()
+    public async Task Rebuild_WithoutRebuildScope_ReturnsForbidden()
     {
         var elasticsearch = new FakeElasticsearchHandler();
         await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
@@ -254,9 +254,9 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
             "Bearer",
             IntegrationTestInternalAuth.Issue(
-                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.AssetServiceActor,
                 SekaiInternalAuthDefaults.SearchServiceActor,
-                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
+                SekaiInternalAuthDefaults.SearchQueryScope));
 
         using var response = await client.SendAsync(request);
 
