@@ -168,7 +168,6 @@ Settings -> Environments -> New environment -> production
 
 | Name | Value |
 |---|---|
-| `SEKAI_DEPLOY_HOST` | `<server-host>` |
 | `SEKAI_DEPLOY_PORT` | `<ssh-port>` |
 | `SEKAI_DEPLOY_USER` | `<deploy-user>` |
 | `SEKAI_DEPLOY_SCRIPT` | `/usr/local/bin/deploy-from-github` |
@@ -177,6 +176,7 @@ Settings -> Environments -> New environment -> production
 
 | Name | Value |
 |---|---|
+| `SEKAI_DEPLOY_HOST` | `<server-host>` |
 | `SEKAI_DEPLOY_SSH_KEY` | `./sekai-platform-deploy` 私钥全文 |
 | `SEKAI_DEPLOY_KNOWN_HOSTS` | `./sekai-platform-known-hosts` 全文 |
 

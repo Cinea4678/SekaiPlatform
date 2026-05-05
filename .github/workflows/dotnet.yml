@@ -125,7 +125,7 @@ jobs:
     env:
       SEKAI_IMAGE_PREFIX: ${{ needs.build-images.outputs.image-prefix }}
       SEKAI_IMAGE_TAG: ${{ needs.build-images.outputs.image-tag }}
-      SEKAI_DEPLOY_HOST: ${{ vars.SEKAI_DEPLOY_HOST }}
+      SEKAI_DEPLOY_HOST: ${{ secrets.SEKAI_DEPLOY_HOST }}
       SEKAI_DEPLOY_PORT: ${{ vars.SEKAI_DEPLOY_PORT || '22' }}
       SEKAI_DEPLOY_USER: ${{ vars.SEKAI_DEPLOY_USER }}
       SEKAI_DEPLOY_SCRIPT: ${{ vars.SEKAI_DEPLOY_SCRIPT || '/usr/local/bin/deploy-from-github' }}
