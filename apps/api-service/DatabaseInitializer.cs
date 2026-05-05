@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
 
 /// <summary>
-/// Applies development-only database migration and seed setup for API Service startup.
+/// Applies configured database migration and development seed setup for API Service startup.
 /// </summary>
 internal static class DatabaseInitializer
 {
@@ -11,7 +11,7 @@ internal static class DatabaseInitializer
     private const string AdminQqId = "1650121748";
 
     /// <summary>
-    /// Runs configured development database initialization steps.
+    /// Runs configured database initialization steps.
     /// </summary>
     public static async Task InitializeAsync(WebApplication app)
     {
@@ -21,9 +21,9 @@ internal static class DatabaseInitializer
             return;
         }
 
-        if (!app.Environment.IsDevelopment())
+        if (options.Seed && !app.Environment.IsDevelopment())
         {
-            throw new InvalidOperationException("Database auto migration and seed are only allowed in Development.");
+            throw new InvalidOperationException("Database seed is only allowed in Development.");
         }
 
         using var scope = app.Services.CreateScope();

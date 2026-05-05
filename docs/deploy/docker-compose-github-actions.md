@@ -83,7 +83,7 @@ SYNC_WORKER_INTERNAL_PRIVATE_KEY=<sync-worker-private-key>
 SYNC_WORKER_INTERNAL_PUBLIC_KEY=<sync-worker-public-key>
 
 ASPNETCORE_ENVIRONMENT=Production
-DATABASE_AUTO_MIGRATE=false
+DATABASE_AUTO_MIGRATE=true
 DATABASE_SEED=false
 
 API_SERVICE_BIND_HOST=127.0.0.1
@@ -212,6 +212,8 @@ Actions -> Phase 9 -> Run workflow -> main
 
 该 workflow 会重新执行构建和镜像发布，然后执行 deploy job。deploy job 只会通过 SSH 执行服务器脚本。
 
+部署脚本完成后，API Service 容器启动时会自动执行 EF Core migration。生产环境不会自动执行 seed。
+
 ## 9. 服务器验证
 
 在服务器执行：
@@ -220,6 +222,12 @@ Actions -> Phase 9 -> Run workflow -> main
 cd /opt/sekai-platform
 docker compose ps
 docker compose logs --tail=100 api-service
+```
+
+确认 API Service 没有 migration 异常：
+
+```bash
+docker compose logs api-service | grep -iE 'migrat|exception|fail'
 ```
 
 在服务器或反向代理所在机器执行：
@@ -269,11 +277,35 @@ curl -fsS http://127.0.0.1:8080/health
 
 ## 12. 数据库迁移
 
-当前 Production 环境保持：
+生产环境默认开启启动迁移，关闭 seed：
 
 ```bash
-DATABASE_AUTO_MIGRATE=false
+DATABASE_AUTO_MIGRATE=true
 DATABASE_SEED=false
 ```
 
-生产数据库迁移在部署前单独执行。Phase 9 不在部署脚本内自动执行 migration。
+执行部署时，脚本会更新 Compose 文件并重启服务。API Service 启动阶段执行 pending EF Core migrations。
+
+迁移失败时：
+
+1. 本次 API Service 容器启动失败或健康检查失败。
+2. 查看日志：
+
+```bash
+cd /opt/sekai-platform
+docker compose logs --tail=200 api-service
+```
+
+3. 修复数据库或代码问题后，重新执行部署：
+
+```bash
+/usr/local/bin/deploy-from-github \
+  --image-prefix ghcr.io/<owner>/<repo> \
+  --image-tag <commit-sha>
+```
+
+禁止在 Production 设置：
+
+```bash
+DATABASE_SEED=true
+```

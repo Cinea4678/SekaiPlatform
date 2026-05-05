@@ -53,7 +53,7 @@ scripts/generate-internal-auth-keys.sh >> .env
 docker compose up --build
 ```
 
-API Service 在 Docker Compose 的 Development 环境中默认会自动执行 EF Core migration 并写入 seed 数据。可在 `.env` 中关闭：
+API Service 默认会在启动时自动执行 EF Core migration。Development 环境中还会按配置写入 seed 数据。可在 `.env` 中关闭：
 
 ```bash
 DATABASE_AUTO_MIGRATE=false

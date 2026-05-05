@@ -185,7 +185,7 @@ services:
       InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:?}
       InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:?}
       InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:?}
-      Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-false}
+      Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
       Database__Seed: ${DATABASE_SEED:-false}
     ports:
       - "${API_SERVICE_BIND_HOST:-127.0.0.1}:${API_SERVICE_PORT:-8080}:8080"
