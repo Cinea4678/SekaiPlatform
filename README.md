@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 5 搜索索引。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 6 搜索 API。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 项目进度
 
@@ -19,9 +19,9 @@ gantt
     Phase 3 鉴权和租户         :done, p3, 2026-05-04, 1d
     Phase 4 外部数据源同步     :done, p4, 2026-05-04, 1d
     Phase 5 搜索索引           :done, p5, 2026-05-05, 1d
+    Phase 6 搜索 API           :done, p6, 2026-05-05, 1d
 
     section 待排期
-    Phase 6 搜索 API           :p6, after p5, 1d
     Phase 7 历史译文批量导入   :p7, after p6, 1d
     Phase 8 剧情详情           :p8, after p7, 1d
     Phase 9 本地交付           :p9, after p8, 1d
@@ -133,6 +133,45 @@ ELASTICSEARCH_CLI_JAVA_OPTS=-XX:UseSVE=0
 curl -g 'http://[::1]:8080/health'
 ```
 
+## 搜索 API
+
+Phase 6 已实现公开搜索入口 `GET /api/search`。该接口要求用户已登录并已选择当前租户，搜索范围包括全平台共享原文和当前租户译文。
+
+请求示例：
+
+```bash
+curl 'http://localhost:8080/api/search?keyword=こんにちは&page=1&page_size=20' \
+  -H 'Authorization: Bearer <access-token>'
+```
+
+响应按行返回搜索结果：
+
+```json
+{
+  "items": [
+    {
+      "asset_type": "source",
+      "text": "こんにちは",
+      "highlight_text": "<mark>こんにちは</mark>",
+      "speaker": "ミク",
+      "line_no": 1,
+      "story_id": 301,
+      "story_title": "第1話",
+      "story_type": "event_story",
+      "story_group_id": 201,
+      "story_group_title": "テストイベント",
+      "source_line_id": 401,
+      "translation_version_id": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+一期只对原文/译文正文进行关键词匹配；剧情、剧情集和说话人作为结果上下文返回。`page_size` 范围为 1 到 100，且结果窗口 `from + page_size` 不得超过 10000。
+
 ## .NET 工程
 
 编译 solution：
@@ -193,6 +232,7 @@ deploy/
 - [实施计划](docs/plan/index.md)
 - [Phase 4 完成记录](docs/plan/phase-4-status.md)
 - [Phase 5 完成记录](docs/plan/phase-5-status.md)
+- [Phase 6 完成记录](docs/plan/phase-6-status.md)
 
 ## 约定
 
