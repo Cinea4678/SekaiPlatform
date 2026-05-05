@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 7 历史译文批量导入。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 8 剧情详情。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 项目进度
 
@@ -21,9 +21,9 @@ gantt
     Phase 5 搜索索引           :done, p5, 2026-05-05, 1d
     Phase 6 搜索 API           :done, p6, 2026-05-05, 1d
     Phase 7 历史译文批量导入   :done, p7, 2026-05-05, 1d
+    Phase 8 剧情详情           :done, p8, 2026-05-05, 1d
 
     section 待排期
-    Phase 8 剧情详情           :p8, after p7, 1d
     Phase 9 本地交付           :p9, after p8, 1d
 ```
 
@@ -217,6 +217,50 @@ curl -X POST http://localhost:8080/api/import/translation-versions \
 
 导入请求按整批事务处理，任意剧情或行校验失败时整批不写入。导入成功后会刷新对应翻译版本的 translation 搜索索引，译文可通过 `/api/search` 在当前租户内检索。
 
+## 剧情详情
+
+Phase 8 已实现 Assets 读接口。接口要求用户已登录并已选择当前租户，原文剧情为全平台共享数据，翻译版本和翻译行只返回当前租户内的数据。
+
+支持的公开接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/story-types` | 查询支持的剧情类型 |
+| GET | `/api/story-groups` | 查询剧情集列表 |
+| GET | `/api/story-groups/{storyGroupId}` | 查询剧情集详情 |
+| GET | `/api/stories` | 查询剧情列表 |
+| GET | `/api/stories/{storyId}` | 查询剧情详情 |
+| GET | `/api/stories/{storyId}/source-lines` | 查询剧情原文行 |
+| GET | `/api/stories/{storyId}/translation-versions` | 查询当前租户翻译版本列表 |
+| GET | `/api/translation-versions/{translationVersionId}` | 查询翻译版本详情 |
+| GET | `/api/translation-versions/{translationVersionId}/lines` | 查询翻译行 |
+
+分页接口使用 `page` 和 `page_size`，默认 `page=1&page_size=20`，`page_size` 范围为 1 到 100，结果窗口不得超过 10000。
+
+查询剧情详情：
+
+```bash
+curl http://localhost:8080/api/stories/123 \
+  -H 'Authorization: Bearer <access-token>'
+```
+
+查询原文行：
+
+```bash
+curl http://localhost:8080/api/stories/123/source-lines \
+  -H 'Authorization: Bearer <access-token>'
+```
+
+查询翻译版本和翻译行：
+
+```bash
+curl 'http://localhost:8080/api/stories/123/translation-versions?page=1&page_size=20' \
+  -H 'Authorization: Bearer <access-token>'
+
+curl http://localhost:8080/api/translation-versions/456/lines \
+  -H 'Authorization: Bearer <access-token>'
+```
+
 ## .NET 工程
 
 编译 solution：
@@ -279,6 +323,7 @@ deploy/
 - [Phase 5 完成记录](docs/plan/phase-5-status.md)
 - [Phase 6 完成记录](docs/plan/phase-6-status.md)
 - [Phase 7 完成记录](docs/plan/phase-7-status.md)
+- [Phase 8 完成记录](docs/plan/phase-8-status.md)
 
 ## 约定
 
