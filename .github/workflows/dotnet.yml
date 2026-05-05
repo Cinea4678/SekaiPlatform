@@ -1,17 +1,22 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
-
-name: .NET
+name: Phase 9
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  REGISTRY: ghcr.io
 
 jobs:
-  build:
-
+  build-test:
     runs-on: ubuntu-latest
 
     services:
@@ -34,14 +39,118 @@ jobs:
       SEKAI_INTEGRATION_TEST_POSTGRES: Host=localhost;Port=5432;Database=sekai_platform;Username=sekai_platform;Password=sekai_platform
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: 10.0.x
-    - name: Restore dependencies
-      run: dotnet restore SekaiPlatform.sln
-    - name: Build
-      run: dotnet build SekaiPlatform.sln --no-restore -v minimal
-    - name: Test
-      run: dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj --no-build -v normal -nr:false
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore SekaiPlatform.sln
+
+      - name: Build
+        run: dotnet build SekaiPlatform.sln --no-restore -v minimal
+
+      - name: Test
+        run: dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj --no-build -v normal -nr:false --logger "trx;LogFileName=integration-tests.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: tests/integration-tests/TestResults/
+          if-no-files-found: ignore
+
+  build-images:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-prefix: ${{ steps.images.outputs.image-prefix }}
+      image-tag: ${{ steps.images.outputs.image-tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare image names
+        id: images
+        run: |
+          image_prefix="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          image_tag="${GITHUB_SHA}"
+          echo "image-prefix=$image_prefix" >> "$GITHUB_OUTPUT"
+          echo "image-tag=$image_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
+
+      - name: Build images
+        env:
+          IMAGE_PREFIX: ${{ steps.images.outputs.image-prefix }}
+          IMAGE_TAG: ${{ steps.images.outputs.image-tag }}
+          DOCKER_BUILDKIT: "1"
+        run: |
+          docker build --pull -f apps/api-service/Dockerfile -t "$IMAGE_PREFIX/api-service:$IMAGE_TAG" .
+          docker build --pull -f apps/auth-service/Dockerfile -t "$IMAGE_PREFIX/auth-service:$IMAGE_TAG" .
+          docker build --pull -f apps/asset-service/Dockerfile -t "$IMAGE_PREFIX/asset-service:$IMAGE_TAG" .
+          docker build --pull -f apps/search-service/Dockerfile -t "$IMAGE_PREFIX/search-service:$IMAGE_TAG" .
+          docker build --pull -f apps/sync-worker/Dockerfile -t "$IMAGE_PREFIX/sync-worker:$IMAGE_TAG" .
+          docker build --pull -f deploy/elasticsearch/Dockerfile -t "$IMAGE_PREFIX/elasticsearch:$IMAGE_TAG" deploy/elasticsearch
+
+      - name: Push images
+        env:
+          IMAGE_PREFIX: ${{ steps.images.outputs.image-prefix }}
+          IMAGE_TAG: ${{ steps.images.outputs.image-tag }}
+        run: |
+          docker push "$IMAGE_PREFIX/api-service:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/auth-service:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/asset-service:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/search-service:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/sync-worker:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/elasticsearch:$IMAGE_TAG"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'workflow_dispatch'
+    environment: production
+    permissions:
+      contents: read
+
+    env:
+      SEKAI_IMAGE_PREFIX: ${{ needs.build-images.outputs.image-prefix }}
+      SEKAI_IMAGE_TAG: ${{ needs.build-images.outputs.image-tag }}
+      SEKAI_DEPLOY_HOST: ${{ vars.SEKAI_DEPLOY_HOST }}
+      SEKAI_DEPLOY_PORT: ${{ vars.SEKAI_DEPLOY_PORT || '22' }}
+      SEKAI_DEPLOY_USER: ${{ vars.SEKAI_DEPLOY_USER }}
+      SEKAI_DEPLOY_SCRIPT: ${{ vars.SEKAI_DEPLOY_SCRIPT || '/usr/local/bin/deploy-from-github' }}
+      SEKAI_DEPLOY_SSH_KEY: ${{ secrets.SEKAI_DEPLOY_SSH_KEY }}
+      SEKAI_DEPLOY_KNOWN_HOSTS: ${{ secrets.SEKAI_DEPLOY_KNOWN_HOSTS }}
+
+    steps:
+      - name: Configure SSH
+        run: |
+          test -n "$SEKAI_DEPLOY_HOST"
+          test -n "$SEKAI_DEPLOY_USER"
+          test -n "$SEKAI_DEPLOY_SSH_KEY"
+          test -n "$SEKAI_DEPLOY_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SEKAI_DEPLOY_SSH_KEY" > ~/.ssh/sekai_deploy
+          chmod 600 ~/.ssh/sekai_deploy
+          printf '%s\n' "$SEKAI_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Trigger server deployment
+        run: |
+          ssh -i ~/.ssh/sekai_deploy \
+            -p "$SEKAI_DEPLOY_PORT" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SEKAI_DEPLOY_USER@$SEKAI_DEPLOY_HOST" \
+            "$SEKAI_DEPLOY_SCRIPT --image-prefix '$SEKAI_IMAGE_PREFIX' --image-tag '$SEKAI_IMAGE_TAG'"

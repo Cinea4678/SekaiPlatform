@@ -238,12 +238,19 @@
 - 添加 Elasticsearch 插件构建说明。
 - 添加基础测试。
 - 添加接口冒烟测试。
+- 添加服务器 Docker Compose 部署基线。
+- 添加 GitHub Actions 编译、测试、镜像发布和部署入口。
+- 预留 GitHub-hosted runner 通过 SSH 触发服务器部署脚本的流程。
 
 ### 完成标准
 
 - 新环境按 README 可启动完整本地系统。
 - 本地 seed 数据可登录。
 - 冒烟测试覆盖登录、租户选择、同步、搜索、导入、剧情详情。
+- 默认分支流水线可完成编译、测试和镜像发布。
+- 服务器部署脚本可用 Docker Compose 拉取指定镜像并重启服务。
+
+准备记录：见 [Phase 9 准备记录](phase-9-status.md)。
 
 ## 实施顺序
 

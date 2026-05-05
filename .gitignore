@@ -14,6 +14,7 @@ TestResults/
 
 # Local configuration
 .env
+deploy/server.env
 *.local.json
 
 # Docker and OS noise
