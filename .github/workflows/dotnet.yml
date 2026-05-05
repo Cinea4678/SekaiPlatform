@@ -18,19 +18,20 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: sekai_platform_ci
+          POSTGRES_DB: sekai_platform
           POSTGRES_USER: sekai_platform
           POSTGRES_PASSWORD: sekai_platform
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U sekai_platform -d sekai_platform_ci"
+          --health-cmd "pg_isready -U sekai_platform -d sekai_platform"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      SEKAI_INTEGRATION_TEST_POSTGRES: Host=localhost;Port=5432;Database=sekai_platform_ci;Username=sekai_platform;Password=sekai_platform
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=sekai_platform;Username=sekai_platform;Password=sekai_platform
+      SEKAI_INTEGRATION_TEST_POSTGRES: Host=localhost;Port=5432;Database=sekai_platform;Username=sekai_platform;Password=sekai_platform
 
     steps:
     - uses: actions/checkout@v4
