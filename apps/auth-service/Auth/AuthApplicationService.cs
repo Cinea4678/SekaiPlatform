@@ -21,7 +21,7 @@ internal sealed class AuthApplicationService(
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Unauthorized();
+            return InvalidCredentials();
         }
 
         var user = await dbContext.Users
@@ -30,7 +30,7 @@ internal sealed class AuthApplicationService(
             .SingleOrDefaultAsync(item => item.QqId == request.Username, cancellationToken);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
         {
-            return Unauthorized();
+            return InvalidCredentials();
         }
 
         var verification = new PasswordHasher<User>().VerifyHashedPassword(
@@ -39,7 +39,7 @@ internal sealed class AuthApplicationService(
             request.Password);
         if (verification == PasswordVerificationResult.Failed)
         {
-            return Unauthorized();
+            return InvalidCredentials();
         }
 
         var tenants = GetActiveTenantResponses(user.UserTenants);
@@ -216,7 +216,7 @@ internal sealed class AuthApplicationService(
         {
             return Error(
                 StatusCodes.Status409Conflict,
-                "User already belongs to current tenant with another role.");
+                "用户已属于当前租户，且角色与本次邀请不一致。");
         }
 
         membership.Role = role;
@@ -239,7 +239,15 @@ internal sealed class AuthApplicationService(
     /// </summary>
     private IResult Unauthorized()
     {
-        return Error(StatusCodes.Status401Unauthorized, "Unauthorized.");
+        return Error(StatusCodes.Status401Unauthorized, "未登录或登录已失效。");
+    }
+
+    /// <summary>
+    /// Creates a standard login credential failure response without revealing which credential failed.
+    /// </summary>
+    private IResult InvalidCredentials()
+    {
+        return Error(StatusCodes.Status401Unauthorized, "用户名或密码错误。");
     }
 
     /// <summary>
@@ -247,7 +255,7 @@ internal sealed class AuthApplicationService(
     /// </summary>
     private IResult Forbidden()
     {
-        return Error(StatusCodes.Status403Forbidden, "Forbidden.");
+        return Error(StatusCodes.Status403Forbidden, "无权访问。");
     }
 
     /// <summary>
@@ -255,7 +263,7 @@ internal sealed class AuthApplicationService(
     /// </summary>
     private IResult BadRequest()
     {
-        return Error(StatusCodes.Status400BadRequest, "Invalid invitation request.");
+        return Error(StatusCodes.Status400BadRequest, "邀请请求无效。");
     }
 
     /// <summary>

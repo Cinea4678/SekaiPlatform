@@ -81,7 +81,7 @@ public sealed class SourceStorySyncRunner(
 
             var allScenariosFailed = drafts.Count > 0 && results.SyncedStories == 0 && results.Failures.Count > 0;
             job.Status = allScenariosFailed ? SourceSyncConstants.StatusFailed : SourceSyncConstants.StatusSucceeded;
-            job.ErrorMessage = allScenariosFailed ? "Source story sync failed." : null;
+            job.ErrorMessage = allScenariosFailed ? "原文同步失败。" : null;
             job.EndedAt = DateTimeOffset.UtcNow;
             job.UpdatedAt = job.EndedAt.Value;
             job.Metadata = SourceSyncJson.Serialize(new
@@ -101,7 +101,7 @@ public sealed class SourceStorySyncRunner(
             job.Status = SourceSyncConstants.StatusFailed;
             job.EndedAt = DateTimeOffset.UtcNow;
             job.UpdatedAt = job.EndedAt.Value;
-            job.ErrorMessage = "Source story sync canceled.";
+            job.ErrorMessage = "原文同步已取消。";
             job.Metadata = SourceSyncJson.Serialize(new
             {
                 source = SourceSyncConstants.Source
@@ -113,7 +113,7 @@ public sealed class SourceStorySyncRunner(
             job.Status = SourceSyncConstants.StatusFailed;
             job.EndedAt = DateTimeOffset.UtcNow;
             job.UpdatedAt = job.EndedAt.Value;
-            job.ErrorMessage = "Source story sync failed.";
+            job.ErrorMessage = "原文同步失败。";
             job.Metadata = SourceSyncJson.Serialize(new
             {
                 source = SourceSyncConstants.Source
@@ -204,7 +204,7 @@ public sealed class SourceStorySyncRunner(
                 failures.Add(new ScenarioFailure(
                     draft.Story.StoryType,
                     draft.Story.ScenarioId,
-                    "Scenario download or parse failed."));
+                    "剧情下载或解析失败。"));
                 continue;
             }
 

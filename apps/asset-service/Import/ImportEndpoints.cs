@@ -34,13 +34,13 @@ internal static class ImportEndpoints
         {
             if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
-                return Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                return Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
             }
 
             var readResult = await ReadRequestAsync(httpContext, cancellationToken);
             if (!readResult.Success)
             {
-                return Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid translation import request.");
+                return Error(contextAccessor, StatusCodes.Status400BadRequest, "译文导入请求无效。");
             }
 
             var validation = ValidateRequest(readResult.Request);
@@ -128,12 +128,12 @@ internal static class ImportEndpoints
     {
         if (request?.Items is null || request.Items.Length == 0)
         {
-            return ValidationResult.Failed("Import items are required.");
+            return ValidationResult.Failed("导入项不能为空。");
         }
 
         if (request.Items.Length > MaxItemsPerRequest)
         {
-            return ValidationResult.Failed("Too many import items.");
+            return ValidationResult.Failed("导入项数量过多。");
         }
 
         var totalLines = 0;
@@ -144,40 +144,40 @@ internal static class ImportEndpoints
             var scenarioId = item.ScenarioId?.Trim();
             if (string.IsNullOrWhiteSpace(storyType) || string.IsNullOrWhiteSpace(scenarioId))
             {
-                return ValidationResult.Failed("Story type and scenario ID are required.");
+                return ValidationResult.Failed("剧情类型和场景 ID 不能为空。");
             }
 
             if (item.Lines is null || item.Lines.Length == 0)
             {
-                return ValidationResult.Failed("Import lines are required.");
+                return ValidationResult.Failed("导入行不能为空。");
             }
 
             if (item.Lines.Length > MaxLinesPerItem)
             {
-                return ValidationResult.Failed("Too many import lines in one item.");
+                return ValidationResult.Failed("单个导入项中的行数过多。");
             }
 
             totalLines += item.Lines.Length;
             if (totalLines > MaxTotalLinesPerRequest)
             {
-                return ValidationResult.Failed("Too many import lines.");
+                return ValidationResult.Failed("导入行总数过多。");
             }
 
             var title = NormalizeOptionalText(item.Title);
             if (title?.Length > MaxTitleLength)
             {
-                return ValidationResult.Failed("Translation version title is too long.");
+                return ValidationResult.Failed("译文版本标题过长。");
             }
 
             if (!IsValidVersionMetadata(item.Metadata))
             {
-                return ValidationResult.Failed("Translation version metadata is invalid.");
+                return ValidationResult.Failed("译文版本元数据无效。");
             }
 
             var itemMetadata = SerializeMetadata(item.Metadata);
             if (itemMetadata?.Length > MaxMetadataLength)
             {
-                return ValidationResult.Failed("Translation version metadata is too large.");
+                return ValidationResult.Failed("译文版本元数据过大。");
             }
 
             var duplicateLine = item.Lines
@@ -185,7 +185,7 @@ internal static class ImportEndpoints
                 .FirstOrDefault(group => group.Count() > 1);
             if (duplicateLine is not null)
             {
-                return ValidationResult.Failed($"Duplicate line number: {duplicateLine.Key}.");
+                return ValidationResult.Failed($"行号重复：{duplicateLine.Key}。");
             }
 
             var lines = new List<ValidatedImportLine>(item.Lines.Length);
@@ -194,29 +194,29 @@ internal static class ImportEndpoints
                 var text = line.Text?.Trim();
                 if (line.LineNo <= 0 || string.IsNullOrWhiteSpace(text))
                 {
-                    return ValidationResult.Failed("Line number and text are required.");
+                    return ValidationResult.Failed("行号和译文文本不能为空。");
                 }
 
                 if (text.Length > MaxTextLength)
                 {
-                    return ValidationResult.Failed("Translation text is too long.");
+                    return ValidationResult.Failed("译文文本过长。");
                 }
 
                 var speaker = NormalizeOptionalText(line.Speaker);
                 if (speaker?.Length > MaxSpeakerLength)
                 {
-                    return ValidationResult.Failed("Speaker is too long.");
+                    return ValidationResult.Failed("说话人过长。");
                 }
 
                 if (!IsValidMetadata(line.Metadata))
                 {
-                    return ValidationResult.Failed("Metadata must be a JSON object.");
+                    return ValidationResult.Failed("元数据必须是 JSON 对象。");
                 }
 
                 var metadata = SerializeMetadata(line.Metadata);
                 if (metadata?.Length > MaxMetadataLength)
                 {
-                    return ValidationResult.Failed("Metadata is too large.");
+                    return ValidationResult.Failed("元数据过大。");
                 }
 
                 lines.Add(new ValidatedImportLine(
@@ -272,12 +272,12 @@ internal static class ImportEndpoints
         {
             if (!storyByKey.TryGetValue((import.StoryType, import.ScenarioId), out var story))
             {
-                return ResolvedResult.Failed(StatusCodes.Status404NotFound, "Story not found.");
+                return ResolvedResult.Failed(StatusCodes.Status404NotFound, "剧情不存在。");
             }
 
             if (!sourceLinesByStory.TryGetValue(story.Id, out var linesByNo))
             {
-                return ResolvedResult.Failed(StatusCodes.Status400BadRequest, "Story has no source lines.");
+                return ResolvedResult.Failed(StatusCodes.Status400BadRequest, "剧情没有原文行。");
             }
 
             var requestedLines = new List<ResolvedImportLine>(import.Lines.Count);
@@ -285,7 +285,7 @@ internal static class ImportEndpoints
             {
                 if (!linesByNo.TryGetValue(line.LineNo, out var sourceLine))
                 {
-                    return ResolvedResult.Failed(StatusCodes.Status400BadRequest, "Source line not found.");
+                    return ResolvedResult.Failed(StatusCodes.Status400BadRequest, "原文行不存在。");
                 }
 
                 requestedLines.Add(new ResolvedImportLine(

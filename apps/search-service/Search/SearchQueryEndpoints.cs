@@ -31,34 +31,34 @@ internal static class SearchQueryEndpoints
             var keyword = httpContext.Request.Query["keyword"].ToString().Trim();
             if (string.IsNullOrWhiteSpace(keyword))
             {
-                return Error(contextAccessor, StatusCodes.Status400BadRequest, "Search keyword is required.");
+                return Error(contextAccessor, StatusCodes.Status400BadRequest, "搜索关键词不能为空。");
             }
 
             if (!TryReadPositiveInt(httpContext, "page", DefaultPage, out var page)
                 || !TryReadPositiveInt(httpContext, "page_size", DefaultPageSize, out var pageSize))
             {
-                return Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid pagination parameters.");
+                return Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
             }
 
             if (pageSize > MaxPageSize)
             {
-                return Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid pagination parameters.");
+                return Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
             }
 
             if (((long)page - 1) * pageSize + pageSize > MaxResultWindow)
             {
-                return Error(contextAccessor, StatusCodes.Status400BadRequest, "Search pagination exceeds the maximum result window.");
+                return Error(contextAccessor, StatusCodes.Status400BadRequest, "搜索分页超过最大结果窗口。");
             }
 
             var requestContext = contextAccessor.GetCurrent();
             if (requestContext.TenantId is null)
             {
-                return Error(contextAccessor, StatusCodes.Status403Forbidden, "Tenant is required.");
+                return Error(contextAccessor, StatusCodes.Status403Forbidden, "当前租户不能为空。");
             }
 
             if (!await IsCurrentTenantMemberAsync(dbContext, requestContext, cancellationToken))
             {
-                return Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                return Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
             }
 
             var response = await searchClient.SearchAsync(

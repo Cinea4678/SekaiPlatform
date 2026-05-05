@@ -210,7 +210,7 @@ public static class SekaiWebApplicationBuilderExtensions
                 httpContext.Response.Clear();
                 httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 await httpContext.Response.WriteAsJsonAsync(
-                    new ErrorResponse("Internal server error.", requestContext.TraceId),
+                    new ErrorResponse("服务器内部错误。", requestContext.TraceId),
                     httpContext.RequestAborted);
             }
         });
@@ -495,14 +495,14 @@ public static class SekaiWebApplicationBuilderExtensions
                 await WriteAuthenticationErrorAsync(
                     context.HttpContext,
                     StatusCodes.Status401Unauthorized,
-                    "Unauthorized.");
+                    "未登录或登录已失效。");
             },
             OnForbidden = context =>
             {
                 return WriteAuthenticationErrorAsync(
                     context.HttpContext,
                     StatusCodes.Status403Forbidden,
-                    "Forbidden.");
+                    "无权访问。");
             }
         };
     }
@@ -533,14 +533,14 @@ public static class SekaiWebApplicationBuilderExtensions
                 await WriteAuthenticationErrorAsync(
                     context.HttpContext,
                     StatusCodes.Status401Unauthorized,
-                    "Unauthorized.");
+                    "未登录或登录已失效。");
             },
             OnForbidden = context =>
             {
                 return WriteAuthenticationErrorAsync(
                     context.HttpContext,
                     StatusCodes.Status403Forbidden,
-                    "Forbidden.");
+                    "无权访问。");
             }
         };
     }

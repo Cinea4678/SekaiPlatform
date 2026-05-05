@@ -88,7 +88,8 @@ public sealed class AuthApiTests : IDisposable
         });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await AssertErrorResponseAsync(response);
+        var json = await AssertErrorResponseAsync(response);
+        Assert.Equal("用户名或密码错误。", json.RootElement.GetProperty("msg").GetString());
     }
 
     /// <summary>
@@ -404,11 +405,12 @@ public sealed class AuthApiTests : IDisposable
     /// <summary>
     /// Verifies the common platform error envelope contains message and trace fields.
     /// </summary>
-    private static async Task AssertErrorResponseAsync(HttpResponseMessage response)
+    private static async Task<JsonDocument> AssertErrorResponseAsync(HttpResponseMessage response)
     {
         var json = await ReadJsonAsync(response);
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("msg").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("trace_id").GetString()));
+        return json;
     }
 
     /// <summary>

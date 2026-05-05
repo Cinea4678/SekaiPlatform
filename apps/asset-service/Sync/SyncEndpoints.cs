@@ -27,20 +27,20 @@ internal static class SyncEndpoints
         {
             if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
             }
 
             var requestResult = await ReadRequestAsync(httpContext, cancellationToken);
             if (!requestResult.Success)
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid sync job request.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "同步任务请求无效。");
             }
 
             var request = requestResult.Request;
             if (!string.IsNullOrWhiteSpace(request?.Source)
                 && !string.Equals(request.Source, SourceSyncConstants.Source, StringComparison.Ordinal))
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Unsupported sync source.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "不支持的同步来源。");
             }
 
             SourceStorySyncRunResult result;
@@ -50,7 +50,7 @@ internal static class SyncEndpoints
             }
             catch (SourceSyncAlreadyRunningException)
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status409Conflict, "Source story sync is already running.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status409Conflict, "原文同步任务正在运行。");
             }
 
             await RefreshStoryIndexesAsync(result, searchIndexRefreshClient, logger, CancellationToken.None);
@@ -70,7 +70,7 @@ internal static class SyncEndpoints
         {
             if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
             }
 
             var take = Math.Clamp(limit ?? 20, 1, 100);
@@ -94,12 +94,12 @@ internal static class SyncEndpoints
         {
             if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
-                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
             }
 
             var job = await dbContext.SyncJobs.FindAsync([syncJobId], cancellationToken);
             return job is null
-                ? SyncEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Sync job not found.")
+                ? SyncEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "同步任务不存在。")
                 : Results.Json(SyncEndpointResults.ToResponse(job));
         }).RequireInternalAuthorization(
             SekaiInternalAuthDefaults.SyncJobsReadScope,

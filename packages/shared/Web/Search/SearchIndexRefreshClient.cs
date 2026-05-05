@@ -108,7 +108,7 @@ public sealed class SearchIndexRefreshClient(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return SearchIndexRefreshResult.Failed(null, "Search index refresh timed out.");
+            return SearchIndexRefreshResult.Failed(null, "搜索索引刷新超时。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

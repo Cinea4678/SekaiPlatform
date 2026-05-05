@@ -18,6 +18,8 @@ services:
   elasticsearch:
     build:
       context: deploy/elasticsearch
+      args:
+        ELASTICSEARCH_CLI_JAVA_OPTS: "${ELASTICSEARCH_CLI_JAVA_OPTS:-}"
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"

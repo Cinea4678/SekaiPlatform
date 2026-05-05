@@ -161,7 +161,7 @@ public sealed class SyncApiTests : IDisposable
         var job = await runner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
 
         Assert.Equal(SourceSyncConstants.StatusFailed, job.Status);
-        Assert.Equal("Source story sync failed.", job.ErrorMessage);
+        Assert.Equal("原文同步失败。", job.ErrorMessage);
     }
 
     /// <summary>

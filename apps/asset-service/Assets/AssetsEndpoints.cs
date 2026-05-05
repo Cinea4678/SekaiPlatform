@@ -45,12 +45,12 @@ internal static class AssetsEndpoints
         {
             if (!TryNormalizeStoryType(httpContext.Request.Query["story_type"].ToString(), out var normalizedStoryType))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid story type.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情类型无效。");
             }
 
             if (!TryReadPagination(httpContext, out var paging))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid pagination parameters.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
             }
 
             var query = dbContext.StoryGroups
@@ -96,7 +96,7 @@ internal static class AssetsEndpoints
                 .AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == storyGroupId && item.DeletedAt == null, cancellationToken);
             return group is null
-                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Story group not found.")
+                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "剧情集不存在。")
                 : Results.Json(AssetsEndpointResults.ToResponse(group));
         }));
 
@@ -108,17 +108,17 @@ internal static class AssetsEndpoints
         {
             if (!TryNormalizeStoryType(httpContext.Request.Query["story_type"].ToString(), out var normalizedStoryType))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid story type.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情类型无效。");
             }
 
             if (!TryReadOptionalLong(httpContext, "story_group_id", out var storyGroupId))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid story group ID.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情集 ID 无效。");
             }
 
             if (!TryReadPagination(httpContext, out var paging))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid pagination parameters.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
             }
 
             var query = dbContext.Stories
@@ -173,7 +173,7 @@ internal static class AssetsEndpoints
                     && (item.Group == null || item.Group.DeletedAt == null),
                     cancellationToken);
             return story is null
-                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Story not found.")
+                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "剧情不存在。")
                 : Results.Json(AssetsEndpointResults.ToResponse(story));
         }));
 
@@ -185,7 +185,7 @@ internal static class AssetsEndpoints
         {
             if (!await StoryExistsAsync(dbContext, storyId, cancellationToken))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Story not found.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "剧情不存在。");
             }
 
             var lines = await dbContext.StorySourceLines
@@ -206,12 +206,12 @@ internal static class AssetsEndpoints
         {
             if (!TryReadPagination(httpContext, out var paging))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "Invalid pagination parameters.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
             }
 
             if (!await StoryExistsAsync(dbContext, storyId, cancellationToken))
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Story not found.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "剧情不存在。");
             }
 
             var tenantId = contextAccessor.GetCurrent().TenantId!.Value;
@@ -247,7 +247,7 @@ internal static class AssetsEndpoints
                 translationVersionId,
                 cancellationToken);
             return version is null
-                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Translation version not found.")
+                ? AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "译文版本不存在。")
                 : Results.Json(AssetsEndpointResults.ToResponse(version));
         }));
 
@@ -264,7 +264,7 @@ internal static class AssetsEndpoints
                 cancellationToken);
             if (version is null)
             {
-                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "Translation version not found.");
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status404NotFound, "译文版本不存在。");
             }
 
             var lines = await dbContext.TranslationLines
@@ -299,7 +299,7 @@ internal static class AssetsEndpoints
                     contextAccessor,
                     context.HttpContext.RequestAborted))
                 {
-                    return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
+                    return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "无权访问。");
                 }
 
                 return await next(context);
