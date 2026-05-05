@@ -103,7 +103,9 @@ scripts/generate-internal-auth-keys.sh
 
 ## 4. 配置服务器 GHCR 读取凭据
 
-准备一个可读取 GHCR package 的 GitHub token。私有 package 使用 classic PAT 时需要 `read:packages` 权限。
+公开 GHCR package 不需要配置读取凭据，跳过本节。
+
+私有 GHCR package 需要配置读取凭据。使用 classic PAT 时需要 `read:packages` 权限。
 
 在服务器创建 `/etc/sekai-platform/deploy-from-github.env`：
 
@@ -115,6 +117,7 @@ sudo nano /etc/sekai-platform/deploy-from-github.env
 写入：
 
 ```bash
+REGISTRY_LOGIN=true
 GHCR_USERNAME=<github-user-or-machine-account>
 GHCR_TOKEN=<github-token-with-read-packages>
 ```

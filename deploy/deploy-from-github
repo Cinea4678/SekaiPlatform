@@ -10,7 +10,7 @@ IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 GHCR_USERNAME="${GHCR_USERNAME:-}"
 GHCR_TOKEN="${GHCR_TOKEN:-}"
-SKIP_REGISTRY_LOGIN="${SKIP_REGISTRY_LOGIN:-0}"
+REGISTRY_LOGIN="${REGISTRY_LOGIN:-false}"
 DRY_RUN=0
 
 usage() {
@@ -29,9 +29,9 @@ Options:
   -h, --help             Show this help.
 
 Config file variables:
+  REGISTRY_LOGIN         Set to true to run docker login before pulling images.
   GHCR_USERNAME          GitHub user or machine account used for GHCR login.
   GHCR_TOKEN             Token with permission to read private GHCR packages.
-  SKIP_REGISTRY_LOGIN    Set to 1 for public images or pre-authenticated Docker.
 USAGE
 }
 
@@ -107,7 +107,7 @@ if [[ ! -f "$SERVER_ENV_FILE" ]]; then
   exit 1
 fi
 
-if [[ "$SKIP_REGISTRY_LOGIN" != "1" ]]; then
+if [[ "$REGISTRY_LOGIN" == "true" ]]; then
   require_value GHCR_USERNAME "$GHCR_USERNAME"
   require_value GHCR_TOKEN "$GHCR_TOKEN"
 fi
@@ -308,7 +308,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-if [[ "$SKIP_REGISTRY_LOGIN" != "1" ]]; then
+if [[ "$REGISTRY_LOGIN" == "true" ]]; then
   printf '%s' "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GHCR_USERNAME" --password-stdin >/dev/null
 fi
 
