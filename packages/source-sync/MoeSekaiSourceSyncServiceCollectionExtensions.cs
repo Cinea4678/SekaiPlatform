@@ -29,6 +29,8 @@ public static class MoeSekaiSourceSyncServiceCollectionExtensions
         services.AddHttpClient<MoeSekaiScenarioClient>(client => client.Timeout = options.RequestTimeout);
         services.AddSingleton<MoeSekaiCatalogBuilder>();
         services.AddSingleton<UnityScenarioParser>();
+        services.AddSingleton<SourceStorySyncExecutionGate>();
+        services.AddHostedService<SourceStorySyncStartupRecoveryService>();
         services.AddScoped<SourceStorySyncRunner>();
 
         return services;

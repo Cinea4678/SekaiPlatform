@@ -15,15 +15,17 @@ namespace SekaiPlatform.SourceSync;
 /// <param name="catalogBuilder">Builder that converts master data into story drafts.</param>
 /// <param name="scenarioParser">Parser that extracts source lines from scenario JSON.</param>
 /// <param name="options">Moe Sekai source synchronization options.</param>
+/// <param name="executionGate">Process-local gate used to reject concurrent sync triggers.</param>
 public sealed class SourceStorySyncRunner(
     SekaiPlatformDbContext dbContext,
     MoeSekaiMasterClient masterClient,
     MoeSekaiScenarioClient scenarioClient,
     MoeSekaiCatalogBuilder catalogBuilder,
     UnityScenarioParser scenarioParser,
-    MoeSekaiSourceSyncOptions options)
+    MoeSekaiSourceSyncOptions options,
+    SourceStorySyncExecutionGate executionGate)
 {
-    private const long AdvisoryLockKey = 8210187004;
+    internal const long AdvisoryLockKey = 8210187004;
 
     /// <summary>
     /// Executes one source story sync job and records its final status.
@@ -45,15 +47,24 @@ public sealed class SourceStorySyncRunner(
     /// <returns>The persisted pending sync job.</returns>
     public async Task<SyncJob> CreatePendingJobAsync(string triggerType, CancellationToken cancellationToken)
     {
-        if (await HasActiveSyncJobAsync(cancellationToken))
+        if (!executionGate.TryReservePendingJob())
         {
             throw new SourceSyncAlreadyRunningException();
         }
 
-        var job = CreatePendingJob(triggerType);
-        dbContext.SyncJobs.Add(job);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return job;
+        try
+        {
+            var job = CreatePendingJob(triggerType);
+            dbContext.SyncJobs.Add(job);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            executionGate.BindReservedPendingJob(job.Id);
+            return job;
+        }
+        catch
+        {
+            executionGate.ReleasePendingReservation();
+            throw;
+        }
     }
 
     /// <summary>
@@ -64,7 +75,8 @@ public sealed class SourceStorySyncRunner(
     /// <returns>The persisted sync job record and successfully synchronized story identifiers.</returns>
     public async Task<SourceStorySyncRunResult> RunWithResultAsync(string triggerType, CancellationToken cancellationToken)
     {
-        if (await HasActiveSyncJobAsync(cancellationToken))
+        using var executionLease = executionGate.TryEnterNewJob();
+        if (executionLease is null)
         {
             throw new SourceSyncAlreadyRunningException();
         }
@@ -113,41 +125,53 @@ public sealed class SourceStorySyncRunner(
         long syncJobId,
         CancellationToken cancellationToken)
     {
-        var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
-        SyncJob? job = null;
-        IReadOnlyList<long> syncedStoryIds = [];
-        try
+        var executionLease = executionGate.TryEnterPendingJob(syncJobId);
+        if (executionLease is null)
         {
-            job = await dbContext.SyncJobs.FindAsync([syncJobId], cancellationToken)
+            var blockedJob = await dbContext.SyncJobs.FindAsync([syncJobId], cancellationToken)
                 ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not found.");
+            await MarkJobFailedAsync(blockedJob, "原文同步任务正在运行。", cancellationToken);
+            return new SourceStorySyncRunResult(blockedJob, []);
+        }
 
-            if (!lockAcquired)
+        using (executionLease)
+        {
+            var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
+            SyncJob? job = null;
+            IReadOnlyList<long> syncedStoryIds = [];
+            try
             {
-                await MarkJobFailedAsync(job, "原文同步任务正在运行。", cancellationToken);
-                return new SourceStorySyncRunResult(job, syncedStoryIds);
+                job = await dbContext.SyncJobs.FindAsync([syncJobId], cancellationToken)
+                    ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not found.");
+
+                if (!lockAcquired)
+                {
+                    await MarkJobFailedAsync(job, "原文同步任务正在运行。", cancellationToken);
+                    return new SourceStorySyncRunResult(job, syncedStoryIds);
+                }
+
+                syncedStoryIds = await ExecuteJobAsync(job, cancellationToken);
+            }
+            catch (OperationCanceledException) when (job is not null)
+            {
+                await MarkJobFailedAsync(job, "原文同步已取消。", CancellationToken.None);
+            }
+            catch (Exception) when (job is not null)
+            {
+                await MarkJobFailedAsync(job, "原文同步失败。", CancellationToken.None);
+            }
+            finally
+            {
+                if (lockAcquired)
+                {
+                    await ReleaseSyncLockAsync();
+                }
             }
 
-            syncedStoryIds = await ExecuteJobAsync(job, cancellationToken);
+            return new SourceStorySyncRunResult(
+                job ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not loaded."),
+                syncedStoryIds);
         }
-        catch (OperationCanceledException) when (job is not null)
-        {
-            await MarkJobFailedAsync(job, "原文同步已取消。", CancellationToken.None);
-        }
-        catch (Exception) when (job is not null)
-        {
-            await MarkJobFailedAsync(job, "原文同步失败。", CancellationToken.None);
-        }
-        finally
-        {
-            if (lockAcquired)
-            {
-                await ReleaseSyncLockAsync();
-            }
-        }
-
-        return new SourceStorySyncRunResult(
-            job ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not loaded."),
-            syncedStoryIds);
     }
 
     /// <summary>
@@ -413,19 +437,6 @@ public sealed class SourceStorySyncRunner(
                     draft.Story.ScenarioId,
                     "剧情下载或解析失败。"));
         }
-    }
-
-    /// <summary>
-    /// Checks whether a source sync job is already pending or running.
-    /// </summary>
-    /// <param name="cancellationToken">Token used to cancel the database query.</param>
-    /// <returns><see langword="true"/> when another source sync job is active.</returns>
-    private Task<bool> HasActiveSyncJobAsync(CancellationToken cancellationToken)
-    {
-        return dbContext.SyncJobs.AnyAsync(job =>
-            job.JobType == SourceSyncConstants.JobType
-            && (job.Status == SourceSyncConstants.StatusPending || job.Status == SourceSyncConstants.StatusRunning),
-            cancellationToken);
     }
 
     /// <summary>

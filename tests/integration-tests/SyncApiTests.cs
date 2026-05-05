@@ -93,6 +93,49 @@ public sealed class SyncApiTests : IDisposable
     }
 
     /// <summary>
+    /// Ensures a stale running job row left by a previous process does not block a new manual trigger.
+    /// </summary>
+    [Fact]
+    public async Task ManualSync_StaleRunningDatabaseJob_DoesNotReturnConflict()
+    {
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.AdminQqId,
+            IntegrationTestDatabaseFixture.AdminPassword);
+
+        await using (var dbContext = fixture.CreateDbContext())
+        {
+            var now = DateTimeOffset.UtcNow.AddHours(-1);
+            dbContext.SyncJobs.Add(new SyncJob
+            {
+                JobType = SourceSyncConstants.JobType,
+                TriggerType = SourceSyncConstants.TriggerManual,
+                Status = SourceSyncConstants.StatusRunning,
+                StartedAt = now,
+                Metadata = JsonSerializer.Serialize(new { source = SourceSyncConstants.Source }),
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var response = await SendWithBearerAsync(
+            client,
+            HttpMethod.Post,
+            "/api/sync/jobs",
+            login.Token,
+            new { source = "moesekai" });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var json = await ReadJsonAsync(response);
+        var syncJobId = json.RootElement.GetProperty("id").GetInt64();
+        var job = await WaitForSyncJobAsync(syncJobId, SourceSyncConstants.StatusSucceeded);
+
+        Assert.Equal(SourceSyncConstants.StatusSucceeded, job.Status);
+    }
+
+    /// <summary>
     /// Ensures normal users cannot trigger manual source synchronization.
     /// </summary>
     [Fact]
@@ -134,7 +177,8 @@ public sealed class SyncApiTests : IDisposable
             new MoeSekaiScenarioClient(new HttpClient(handler), options),
             new MoeSekaiCatalogBuilder(),
             new UnityScenarioParser(),
-            options);
+            options,
+            new SourceStorySyncExecutionGate());
 
         var job = await runner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
 
@@ -162,7 +206,8 @@ public sealed class SyncApiTests : IDisposable
             new MoeSekaiScenarioClient(new HttpClient(initialHandler), initialOptions),
             new MoeSekaiCatalogBuilder(),
             new UnityScenarioParser(),
-            initialOptions);
+            initialOptions,
+            new SourceStorySyncExecutionGate());
 
         var initialJob = await initialRunner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
 
@@ -179,7 +224,8 @@ public sealed class SyncApiTests : IDisposable
             new MoeSekaiScenarioClient(new HttpClient(skipHandler), skipOptions),
             new MoeSekaiCatalogBuilder(),
             new UnityScenarioParser(),
-            skipOptions);
+            skipOptions,
+            new SourceStorySyncExecutionGate());
 
         var skippedJob = await skipRunner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
 
@@ -208,7 +254,8 @@ public sealed class SyncApiTests : IDisposable
             new MoeSekaiScenarioClient(new HttpClient(handler), options),
             new MoeSekaiCatalogBuilder(),
             new UnityScenarioParser(),
-            options);
+            options,
+            new SourceStorySyncExecutionGate());
 
         var job = await runner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
 
