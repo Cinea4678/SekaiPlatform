@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace SekaiPlatform.SourceSync;
+namespace SekaiPlatform.SourceSync.Catalog;
 
 /// <summary>
 /// Builds synchronization drafts for Moe Sekai area talks.

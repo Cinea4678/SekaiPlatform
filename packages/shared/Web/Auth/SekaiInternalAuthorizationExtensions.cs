@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Adds endpoint-level authorization requirements for internal service calls.

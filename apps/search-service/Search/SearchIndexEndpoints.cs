@@ -1,4 +1,6 @@
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Context;
+using SekaiPlatform.Shared.Web.Responses;
 
 namespace SekaiPlatform.SearchService.Search;
 

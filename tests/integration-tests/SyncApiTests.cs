@@ -14,8 +14,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Search;
 using SekaiPlatform.SourceSync;
+using SekaiPlatform.SourceSync.Catalog;
 using AssetServiceProgram = AssetService::Program;
 using AuthServiceProgram = AuthService::Program;
 

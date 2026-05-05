@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 using ElasticsearchIndexClient = SearchService::SekaiPlatform.SearchService.Search.ElasticsearchIndexClient;
 using SearchServiceProgram = SearchService::Program;
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SekaiPlatform.SourceSync.Catalog;
 
 namespace SekaiPlatform.SourceSync;
 

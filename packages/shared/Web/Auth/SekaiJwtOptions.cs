@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Provides JWT authentication settings shared by platform services.

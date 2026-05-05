@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Maps API Service synchronization endpoints that proxy frontend calls to Asset Service.

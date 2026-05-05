@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Defines authorization policy names shared by platform services.

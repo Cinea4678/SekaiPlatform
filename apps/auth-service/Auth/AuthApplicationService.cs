@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Coordinates Auth Service user login, session, tenant switching, and invitation workflows.

@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Provides access to normalized request context values.

@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Carries trace, user, and tenant context for the current request.

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 using AuthServiceProgram = AuthService::Program;
 
 namespace SekaiPlatform.IntegrationTests;

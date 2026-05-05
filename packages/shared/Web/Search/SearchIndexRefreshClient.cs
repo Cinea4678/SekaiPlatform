@@ -1,7 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using SekaiPlatform.Shared.Web.Auth;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Search;
 
 /// <summary>
 /// Calls Search Service to refresh index documents after story data changes.

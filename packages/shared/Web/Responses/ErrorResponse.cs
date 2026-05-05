@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Responses;
 
 /// <summary>
 /// Represents the standard JSON error payload returned by platform services.

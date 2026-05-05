@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SekaiPlatform.SourceSync;
+using SekaiPlatform.SourceSync.Catalog;
 
 namespace SekaiPlatform.IntegrationTests;
 

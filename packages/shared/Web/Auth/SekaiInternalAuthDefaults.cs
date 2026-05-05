@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Defines internal token claim names, service actors, and scopes.

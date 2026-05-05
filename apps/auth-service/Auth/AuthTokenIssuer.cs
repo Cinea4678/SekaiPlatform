@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Issues JWT access tokens containing Sekai user and tenant claims.

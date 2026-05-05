@@ -1,7 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Maps API Service authentication endpoints that proxy frontend calls to Auth Service.

@@ -1,4 +1,4 @@
-namespace SekaiPlatform.SourceSync;
+namespace SekaiPlatform.SourceSync.Catalog;
 
 /// <summary>
 /// Builds synchronization drafts for Moe Sekai special stories.

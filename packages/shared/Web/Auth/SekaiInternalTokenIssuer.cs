@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Issues short-lived internal tokens for service-to-service calls.
