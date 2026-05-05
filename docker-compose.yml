@@ -57,7 +57,7 @@ services:
       InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:-}
       Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
       Database__Seed: ${DATABASE_SEED:-true}
-      Database__SeedUsers__AdminPassword: ${SEED_ADMIN_PASSWORD:-}
+      Database__SeedUsers__AdminPassword: ${SEED_ADMIN_PASSWORD:-121748}
     ports:
       - "${API_SERVICE_PORT:-8080}:8080"
     depends_on:

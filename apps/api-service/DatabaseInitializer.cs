@@ -9,6 +9,7 @@ internal static class DatabaseInitializer
 {
     private const string DefaultTenantName = "PJS 字幕组";
     private const string AdminQqId = "1650121748";
+    private const string DefaultAdminPassword = "121748";
 
     /// <summary>
     /// Runs configured database initialization steps.
@@ -64,7 +65,7 @@ internal static class DatabaseInitializer
     }
 
     /// <summary>
-    /// Finds or creates a seed user and applies an initial password when configured.
+    /// Finds or creates a seed user and applies an initial password when the user has no password.
     /// </summary>
     private static async Task<User> EnsureUserAsync(
         SekaiPlatformDbContext dbContext,
@@ -83,13 +84,15 @@ internal static class DatabaseInitializer
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            if (!string.IsNullOrWhiteSpace(password))
-            {
-                user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
-            }
 
             dbContext.Users.Add(user);
             await dbContext.SaveChangesAsync();
+        }
+
+        if (!string.IsNullOrWhiteSpace(password) && string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+            user.UpdatedAt = now;
         }
 
         return user;
@@ -149,6 +152,6 @@ internal static class DatabaseInitializer
         /// <summary>
         /// Gets or sets the password assigned to the default super administrator.
         /// </summary>
-        public string? AdminPassword { get; set; }
+        public string? AdminPassword { get; set; } = DefaultAdminPassword;
     }
 }

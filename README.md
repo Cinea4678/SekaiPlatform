@@ -66,7 +66,7 @@ DATABASE_SEED=false
 |---|---|---|
 | 超级管理员用户 | `1650121748` | `super_admin` |
 
-默认不写入可登录密码。如需为本地 seed 用户写入密码哈希，在 `.env` 中设置：
+默认密码为 `121748`。如需覆盖本地 seed 用户初始密码，在 `.env` 中设置：
 
 ```bash
 SEED_ADMIN_PASSWORD=your-local-admin-password
