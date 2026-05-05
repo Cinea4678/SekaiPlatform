@@ -37,6 +37,12 @@ internal sealed class TranslationImportItem
     public string? Title { get; init; }
 
     /// <summary>
+    /// Gets or sets optional version-level metadata stored with the imported translation version.
+    /// </summary>
+    [JsonPropertyName("metadata")]
+    public JsonElement? Metadata { get; init; }
+
+    /// <summary>
     /// Gets or sets translated lines keyed by source line number.
     /// </summary>
     [JsonPropertyName("lines")]

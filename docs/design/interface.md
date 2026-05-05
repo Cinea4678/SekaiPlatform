@@ -54,7 +54,7 @@ http://localhost:8080
 | `StoryGroup` | 对应 `story_groups` |
 | `Story` | 对应 `stories` |
 | `StorySourceLine` | 对应 `story_source_lines` |
-| `TranslationVersion` | 对应 `translation_versions`，按当前租户隔离 |
+| `TranslationVersion` | 对应 `translation_versions`，按当前租户隔离，包含版本级 `metadata` |
 | `TranslationLine` | 对应 `translation_lines`，按当前租户隔离 |
 | `SearchHit` | 搜索服务返回的行级命中结果 |
 | `SyncJob` | 外部数据源同步任务 |
@@ -237,6 +237,10 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 - 剧情 ID
 - 分页参数
 
+响应中的翻译版本包含：
+
+- `metadata.staff`：版本级署名信息，可空。
+
 约束：
 
 - 只返回当前租户内的翻译版本。
@@ -246,6 +250,10 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 输入：
 
 - 翻译版本 ID
+
+响应中的翻译版本包含：
+
+- `metadata.staff`：版本级署名信息，可空。
 
 约束：
 
@@ -342,6 +350,11 @@ GET /api/search?keyword=...&page=1&page_size=20
 - `items[].story_type`：剧情类型。
 - `items[].scenario_id`：scenario ID。
 - `items[].title`：翻译版本标题，可空。
+- `items[].metadata`：翻译版本扩展信息，可空。
+- `items[].metadata.staff`：版本级署名信息，可空。
+- `items[].metadata.staff.translator`：翻译人员展示名称，可空。
+- `items[].metadata.staff.proofreader`：校对人员展示名称，可空。
+- `items[].metadata.staff.approver`：合意人员展示名称，可空。
 - `items[].lines`：译文行数组。
 - `items[].lines[].line_no`：原文行号。
 - `items[].lines[].text`：译文文本。

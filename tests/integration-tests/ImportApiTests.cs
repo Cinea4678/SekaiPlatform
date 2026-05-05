@@ -72,6 +72,16 @@ public sealed class ImportApiTests : IDisposable
                         story_type = firstStory.StoryType,
                         scenario_id = firstStory.ScenarioId,
                         title = "历史译文 A",
+                        metadata = new
+                        {
+                            staff = new
+                            {
+                                translator = "翻译A",
+                                proofreader = "校对B",
+                                approver = "合意C"
+                            },
+                            source = "legacy-import"
+                        },
                         lines = new object[]
                         {
                             new { line_no = 1, text = "你好一", metadata = new { source = "legacy" } },
@@ -110,6 +120,16 @@ public sealed class ImportApiTests : IDisposable
         Assert.All(versions, version => Assert.Equal(login.TenantId, version.TenantId));
         Assert.Contains(versions, version => version.StoryId == firstStory.StoryId && version.Title == "历史译文 A");
         Assert.Contains(versions, version => version.StoryId == secondStory.StoryId && version.Title == "历史译文 B");
+        var firstVersion = versions.Single(version => version.StoryId == firstStory.StoryId);
+        Assert.NotNull(firstVersion.Metadata);
+        using (var metadata = JsonDocument.Parse(firstVersion.Metadata!))
+        {
+            var staff = metadata.RootElement.GetProperty("staff");
+            Assert.Equal("翻译A", staff.GetProperty("translator").GetString());
+            Assert.Equal("校对B", staff.GetProperty("proofreader").GetString());
+            Assert.Equal("合意C", staff.GetProperty("approver").GetString());
+            Assert.Equal("legacy-import", metadata.RootElement.GetProperty("source").GetString());
+        }
 
         var lines = await dbContext.TranslationLines
             .Where(line => versionIds.Contains(line.VersionId))
@@ -131,6 +151,16 @@ public sealed class ImportApiTests : IDisposable
                 .Select(item => item.GetInt64())
                 .Order()
                 .ToArray());
+
+        using var versionRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/translation-versions/{firstVersion.Id}");
+        versionRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", login.Token);
+        using var versionResponse = await client.SendAsync(versionRequest);
+        Assert.Equal(HttpStatusCode.OK, versionResponse.StatusCode);
+        var versionJson = await ReadJsonAsync(versionResponse);
+        var responseStaff = versionJson.RootElement.GetProperty("metadata").GetProperty("staff");
+        Assert.Equal("翻译A", responseStaff.GetProperty("translator").GetString());
+        Assert.Equal("校对B", responseStaff.GetProperty("proofreader").GetString());
+        Assert.Equal("合意C", responseStaff.GetProperty("approver").GetString());
 
         Assert.All(searchIndexHandler.InternalTokens, token => AssertSearchIndexRefreshToken(token, login.TenantId));
     }
@@ -323,6 +353,42 @@ public sealed class ImportApiTests : IDisposable
             new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, title = new string('a', 256), lines = new[] { new { line_no = 1, text = "a" } } } } },
             new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, lines = new[] { new { line_no = 1, text = "a", speaker = new string('a', 129) } } } } },
             new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, lines = new[] { new { line_no = 1, text = "a", metadata = new[] { "bad" } } } } } }
+        })
+        {
+            using var response = await SendWithBearerAsync(
+                client,
+                HttpMethod.Post,
+                "/api/import/translation-versions",
+                login.Token,
+                body);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            await AssertErrorResponseAsync(response);
+        }
+
+        await using var dbContext = fixture.CreateDbContext();
+        Assert.Equal(0, await dbContext.TranslationVersions.CountAsync(version => version.StoryId == story.StoryId));
+    }
+
+    /// <summary>
+    /// Ensures malformed version metadata is rejected before any database write.
+    /// </summary>
+    [Fact]
+    public async Task ImportTranslationVersions_WithInvalidVersionMetadata_ReturnsBadRequestAndDoesNotWrite()
+    {
+        var story = await SeedStoryAsync("event_story", $"import_invalid_version_metadata_{Guid.NewGuid():N}", 1);
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.AdminQqId,
+            IntegrationTestDatabaseFixture.AdminPassword);
+
+        foreach (var body in new object[]
+        {
+            new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, metadata = new[] { "bad" }, lines = new[] { new { line_no = 1, text = "a" } } } } },
+            new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, metadata = new { staff = new[] { "bad" } }, lines = new[] { new { line_no = 1, text = "a" } } } } },
+            new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, metadata = new { staff = new { translator = new { name = "bad" } } }, lines = new[] { new { line_no = 1, text = "a" } } } } },
+            new { items = new[] { new { story_type = story.StoryType, scenario_id = story.ScenarioId, metadata = new { staff = new { translator = new string('a', 20000) } }, lines = new[] { new { line_no = 1, text = "a" } } } } }
         })
         {
             using var response = await SendWithBearerAsync(

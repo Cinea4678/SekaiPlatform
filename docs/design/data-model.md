@@ -197,6 +197,7 @@ Table: translation_versions
 | story_id | BIGINT | No | 剧情表的主键。 |
 | version_no | INT | No | 版本号，从 1 开始 |
 | title | VARCHAR(255) | Yes | 版本标题 |
+| metadata | JSON | Yes | 版本级扩展信息，包括署名人员 |
 | created_by | BIGINT | No | 创建用户 ID |
 | created_at | DATETIME | No | 创建时间 |
 | updated_at | DATETIME | No | 更新时间 |
@@ -208,6 +209,19 @@ Table: translation_versions
 UNIQUE(tenant_id, story_id, version_no)
 FOREIGN KEY(tenant_id, created_by) REFERENCES user_tenants(tenant_id, user_id)
 ```
+
+### 翻译版本 metadata 约定
+
+`translation_versions.metadata` 保存版本级扩展信息。当前固定使用 `staff` 记录署名人员：
+
+| JSON Path | Type | Nullable | Description |
+|---|---|---:|---|
+| `staff` | object | Yes | 署名人员信息 |
+| `staff.translator` | string | Yes | 翻译人员 |
+| `staff.proofreader` | string | Yes | 校对人员 |
+| `staff.approver` | string | Yes | 合意人员 |
+
+人员字符串用于保存展示名称，不关联平台用户。`staff` 只用于展示和归档，不参与租户权限、版本可编辑性或协作工作流判断。
 
 ## 翻译行表
 

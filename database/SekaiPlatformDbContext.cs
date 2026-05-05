@@ -274,6 +274,7 @@ public sealed class SekaiPlatformDbContext(DbContextOptions<SekaiPlatformDbConte
             entity.Property(version => version.StoryId).HasColumnName("story_id");
             entity.Property(version => version.VersionNo).HasColumnName("version_no").IsRequired();
             entity.Property(version => version.Title).HasColumnName("title").HasMaxLength(255);
+            entity.Property(version => version.Metadata).HasColumnName("metadata").HasColumnType("jsonb");
             entity.Property(version => version.CreatedBy).HasColumnName("created_by");
             entity.Property(version => version.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone").IsRequired();
             entity.Property(version => version.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone").IsRequired();

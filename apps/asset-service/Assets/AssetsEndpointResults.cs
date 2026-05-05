@@ -70,6 +70,7 @@ internal static class AssetsEndpointResults
             version.StoryId,
             version.VersionNo,
             version.Title,
+            ParseMetadata(version.Metadata),
             version.CreatedBy,
             version.CreatedAt,
             version.UpdatedAt);

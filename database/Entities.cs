@@ -393,6 +393,11 @@ public sealed class TranslationVersion
     public string? Title { get; set; }
 
     /// <summary>
+    /// Gets or sets version-level metadata stored as JSON.
+    /// </summary>
+    public string? Metadata { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the user who created this version.
     /// </summary>
     public long CreatedBy { get; set; }

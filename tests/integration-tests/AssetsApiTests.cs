@@ -127,6 +127,10 @@ public sealed class AssetsApiTests : IDisposable
         var version = Assert.Single(versionPage.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal(versions.PrimaryVersionId, version.GetProperty("id").GetInt64());
         Assert.Equal("当前租户译文", version.GetProperty("title").GetString());
+        var versionStaff = version.GetProperty("metadata").GetProperty("staff");
+        Assert.Equal("翻译A", versionStaff.GetProperty("translator").GetString());
+        Assert.Equal("校对B", versionStaff.GetProperty("proofreader").GetString());
+        Assert.Equal("合意C", versionStaff.GetProperty("approver").GetString());
 
         using var versionResponse = await SendWithBearerAsync(
             client,
@@ -135,6 +139,10 @@ public sealed class AssetsApiTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, versionResponse.StatusCode);
         var versionDetail = await ReadJsonAsync(versionResponse);
         Assert.Equal(1, versionDetail.RootElement.GetProperty("version_no").GetInt32());
+        var detailStaff = versionDetail.RootElement.GetProperty("metadata").GetProperty("staff");
+        Assert.Equal("翻译A", detailStaff.GetProperty("translator").GetString());
+        Assert.Equal("校对B", detailStaff.GetProperty("proofreader").GetString());
+        Assert.Equal("合意C", detailStaff.GetProperty("approver").GetString());
 
         using var linesResponse = await SendWithBearerAsync(
             client,
@@ -447,6 +455,7 @@ public sealed class AssetsApiTests : IDisposable
             StoryId = storyId,
             VersionNo = 1,
             Title = "当前租户译文",
+            Metadata = """{"staff":{"translator":"翻译A","proofreader":"校对B","approver":"合意C"}}""",
             CreatedBy = adminId,
             CreatedAt = now,
             UpdatedAt = now

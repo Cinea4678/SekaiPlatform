@@ -94,12 +94,13 @@ if [[ -n "$story_id" ]]; then
       --arg story_type "$story_type" \
       --arg scenario_id "$scenario_id" \
       --argjson line_no "$first_line_no" \
-      '{items:[{story_type:$story_type,scenario_id:$scenario_id,title:"Deployment smoke import",lines:[{line_no:$line_no,text:"Deployment smoke translation"}]}]}')"
+      '{items:[{story_type:$story_type,scenario_id:$scenario_id,title:"Deployment smoke import",metadata:{staff:{translator:"Smoke Translator",proofreader:"Smoke Proofreader",approver:"Smoke Approver"}},lines:[{line_no:$line_no,text:"Deployment smoke translation"}]}]}')"
     request_json POST /api/import/translation-versions "$tmpdir/import.json" "$token" "$import_body"
     version_id="$(jq -r '.items[0].translation_version_id // empty' "$tmpdir/import.json")"
     test -n "$version_id"
     request_json GET "/api/translation-versions/$version_id" "$tmpdir/version.json" "$token"
     jq -e --argjson version_id "$version_id" '.id == $version_id' "$tmpdir/version.json" >/dev/null
+    jq -e '.metadata.staff.translator == "Smoke Translator" and .metadata.staff.proofreader == "Smoke Proofreader" and .metadata.staff.approver == "Smoke Approver"' "$tmpdir/version.json" >/dev/null
     request_json GET "/api/translation-versions/$version_id/lines" "$tmpdir/translation-lines.json" "$token"
     jq -e 'length >= 1' "$tmpdir/translation-lines.json" >/dev/null
   fi

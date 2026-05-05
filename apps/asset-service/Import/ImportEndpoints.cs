@@ -169,6 +169,17 @@ internal static class ImportEndpoints
                 return ValidationResult.Failed("Translation version title is too long.");
             }
 
+            if (!IsValidVersionMetadata(item.Metadata))
+            {
+                return ValidationResult.Failed("Translation version metadata is invalid.");
+            }
+
+            var itemMetadata = SerializeMetadata(item.Metadata);
+            if (itemMetadata?.Length > MaxMetadataLength)
+            {
+                return ValidationResult.Failed("Translation version metadata is too large.");
+            }
+
             var duplicateLine = item.Lines
                 .GroupBy(line => line.LineNo)
                 .FirstOrDefault(group => group.Count() > 1);
@@ -219,6 +230,7 @@ internal static class ImportEndpoints
                 storyType,
                 scenarioId,
                 title,
+                itemMetadata,
                 lines));
         }
 
@@ -288,6 +300,7 @@ internal static class ImportEndpoints
                 import.StoryType,
                 import.ScenarioId,
                 import.Title,
+                import.Metadata,
                 story.Id,
                 requestedLines));
         }
@@ -332,6 +345,7 @@ internal static class ImportEndpoints
                 StoryId = import.StoryId,
                 VersionNo = versionNo,
                 Title = import.Title,
+                Metadata = import.Metadata,
                 CreatedBy = userId,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -446,6 +460,44 @@ internal static class ImportEndpoints
             || metadata.Value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null or JsonValueKind.Object;
     }
 
+    private static bool IsValidVersionMetadata(JsonElement? metadata)
+    {
+        if (metadata is null || metadata.Value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (metadata.Value.ValueKind is not JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (!metadata.Value.TryGetProperty("staff", out var staff))
+        {
+            return true;
+        }
+
+        if (staff.ValueKind is JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (staff.ValueKind is not JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        return IsValidOptionalStringProperty(staff, "translator")
+            && IsValidOptionalStringProperty(staff, "proofreader")
+            && IsValidOptionalStringProperty(staff, "approver");
+    }
+
+    private static bool IsValidOptionalStringProperty(JsonElement owner, string propertyName)
+    {
+        return !owner.TryGetProperty(propertyName, out var property)
+            || property.ValueKind is JsonValueKind.String or JsonValueKind.Null;
+    }
+
     private static async Task AcquireVersionLockAsync(
         SekaiPlatformDbContext dbContext,
         long tenantId,
@@ -488,6 +540,7 @@ internal static class ImportEndpoints
         string StoryType,
         string ScenarioId,
         string? Title,
+        string? Metadata,
         IReadOnlyList<ValidatedImportLine> Lines);
 
     private sealed record ValidatedImportLine(
@@ -500,6 +553,7 @@ internal static class ImportEndpoints
         string StoryType,
         string ScenarioId,
         string? Title,
+        string? Metadata,
         long StoryId,
         IReadOnlyList<ResolvedImportLine> Lines);
 

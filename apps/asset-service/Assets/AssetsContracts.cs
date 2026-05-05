@@ -88,6 +88,7 @@ internal sealed record TranslationVersionResponse(
     [property: JsonPropertyName("story_id")] long StoryId,
     [property: JsonPropertyName("version_no")] int VersionNo,
     [property: JsonPropertyName("title")] string? Title,
+    [property: JsonPropertyName("metadata")] JsonElement? Metadata,
     [property: JsonPropertyName("created_by")] long CreatedBy,
     [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt);
