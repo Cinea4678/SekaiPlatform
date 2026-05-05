@@ -53,7 +53,7 @@ public sealed class MoeSekaiSourceSyncOptions
     /// <summary>
     /// Per-request timeout used by Moe Sekai HTTP clients.
     /// </summary>
-    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromMinutes(3);
 
     /// <summary>
     /// Maximum number of failed scenario samples stored in sync job metadata.
