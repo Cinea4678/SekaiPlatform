@@ -56,6 +56,11 @@ public sealed class MoeSekaiSourceSyncOptions
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromMinutes(3);
 
     /// <summary>
+    /// Maximum number of scenario assets downloaded and parsed at the same time.
+    /// </summary>
+    public int ScenarioDownloadConcurrency { get; set; } = 8;
+
+    /// <summary>
     /// Maximum number of failed scenario samples stored in sync job metadata.
     /// </summary>
     public int FailureSampleLimit { get; set; } = 20;

@@ -20,8 +20,8 @@ internal static class SyncEndpoints
             HttpContext httpContext,
             SekaiPlatformDbContext dbContext,
             SourceStorySyncRunner syncRunner,
+            IServiceScopeFactory serviceScopeFactory,
             ICurrentRequestContextAccessor contextAccessor,
-            SearchIndexRefreshClient searchIndexRefreshClient,
             ILogger<SourceStorySyncRunner> logger,
             CancellationToken cancellationToken) =>
         {
@@ -43,19 +43,19 @@ internal static class SyncEndpoints
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "不支持的同步来源。");
             }
 
-            SourceStorySyncRunResult result;
+            SyncJob job;
             try
             {
-                result = await syncRunner.RunWithResultAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+                job = await syncRunner.CreatePendingJobAsync(SourceSyncConstants.TriggerManual, cancellationToken);
             }
             catch (SourceSyncAlreadyRunningException)
             {
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status409Conflict, "原文同步任务正在运行。");
             }
 
-            await RefreshStoryIndexesAsync(result, searchIndexRefreshClient, logger, CancellationToken.None);
+            QueueManualSync(serviceScopeFactory, job.Id, logger);
 
-            return Results.Json(SyncEndpointResults.ToResponse(result.Job));
+            return Results.Json(SyncEndpointResults.ToResponse(job), statusCode: StatusCodes.Status202Accepted);
         }).RequireInternalAuthorization(
             SekaiInternalAuthDefaults.SyncJobsWriteScope,
             [SekaiInternalAuthDefaults.ApiServiceActor],
@@ -108,6 +108,35 @@ internal static class SyncEndpoints
             requireTenant: true);
 
         return app;
+    }
+
+    /// <summary>
+    /// Starts the manual sync job in a background service scope after the trigger response is sent.
+    /// </summary>
+    private static void QueueManualSync(
+        IServiceScopeFactory serviceScopeFactory,
+        long syncJobId,
+        ILogger logger)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = serviceScopeFactory.CreateAsyncScope();
+                var syncRunner = scope.ServiceProvider.GetRequiredService<SourceStorySyncRunner>();
+                var searchIndexRefreshClient = scope.ServiceProvider.GetRequiredService<SearchIndexRefreshClient>();
+
+                var result = await syncRunner.RunPendingJobWithResultAsync(syncJobId, CancellationToken.None);
+                await RefreshStoryIndexesAsync(result, searchIndexRefreshClient, logger, CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Manual source sync background task failed unexpectedly. job_id:{JobId}",
+                    syncJobId);
+            }
+        });
     }
 
     /// <summary>

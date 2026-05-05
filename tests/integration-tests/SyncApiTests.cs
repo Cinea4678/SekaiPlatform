@@ -68,17 +68,23 @@ public sealed class SyncApiTests : IDisposable
             login.Token,
             new { source = "moesekai" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var json = await ReadJsonAsync(response);
+        var syncJobId = json.RootElement.GetProperty("id").GetInt64();
         Assert.Equal("source_story_sync", json.RootElement.GetProperty("job_type").GetString());
         Assert.Equal("manual", json.RootElement.GetProperty("trigger_type").GetString());
-        Assert.Equal("succeeded", json.RootElement.GetProperty("status").GetString());
+        Assert.Equal("pending", json.RootElement.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Object, json.RootElement.GetProperty("metadata").ValueKind);
+
+        var job = await WaitForSyncJobAsync(syncJobId, SourceSyncConstants.StatusSucceeded);
+        using var metadata = JsonDocument.Parse(job.Metadata!);
+        Assert.Equal(1, metadata.RootElement.GetProperty("story_count").GetInt32());
 
         await using var dbContext = fixture.CreateDbContext();
         var story = await dbContext.Stories.SingleAsync(item => item.ScenarioId == "scenario_event_success");
         Assert.Equal(SourceSyncConstants.EventStory, story.StoryType);
         Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(item => item.StoryId == story.Id));
+        await WaitForSearchRefreshAsync();
         AssertStoryRefreshRequested(searchIndexHandler, story.Id);
         Assert.All(searchIndexHandler.InternalTokens, AssertSearchIndexRefreshToken);
 
@@ -139,6 +145,52 @@ public sealed class SyncApiTests : IDisposable
             line.Story!.ScenarioId == "scenario_event_success_partial"));
         Assert.Equal(0, await dbContext.StorySourceLines.CountAsync(line =>
             line.Story!.ScenarioId == "scenario_event_missing_partial"));
+    }
+
+    /// <summary>
+    /// Verifies an unchanged story with existing source lines does not download its scenario again.
+    /// </summary>
+    [Fact]
+    public async Task ScenarioUnchangedWithSourceLines_SkipsScenarioDownload()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var initialHandler = new FakeMoeSekaiHandler("scenario_event_skip", scenarioSucceeds: true);
+        var initialOptions = initialHandler.CreateOptions();
+        var initialRunner = new SourceStorySyncRunner(
+            dbContext,
+            new MoeSekaiMasterClient(new HttpClient(initialHandler), initialOptions),
+            new MoeSekaiScenarioClient(new HttpClient(initialHandler), initialOptions),
+            new MoeSekaiCatalogBuilder(),
+            new UnityScenarioParser(),
+            initialOptions);
+
+        var initialJob = await initialRunner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+
+        Assert.Equal(SourceSyncConstants.StatusSucceeded, initialJob.Status);
+        Assert.Equal(1, initialHandler.ScenarioRequestCount);
+        Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(line =>
+            line.Story!.ScenarioId == "scenario_event_skip"));
+
+        var skipHandler = new FakeMoeSekaiHandler("scenario_event_skip", scenarioSucceeds: false);
+        var skipOptions = skipHandler.CreateOptions();
+        var skipRunner = new SourceStorySyncRunner(
+            dbContext,
+            new MoeSekaiMasterClient(new HttpClient(skipHandler), skipOptions),
+            new MoeSekaiScenarioClient(new HttpClient(skipHandler), skipOptions),
+            new MoeSekaiCatalogBuilder(),
+            new UnityScenarioParser(),
+            skipOptions);
+
+        var skippedJob = await skipRunner.RunAsync(SourceSyncConstants.TriggerManual, CancellationToken.None);
+
+        Assert.Equal(SourceSyncConstants.StatusSucceeded, skippedJob.Status);
+        Assert.Equal(0, skipHandler.ScenarioRequestCount);
+        using var metadata = JsonDocument.Parse(skippedJob.Metadata!);
+        Assert.Equal(0, metadata.RootElement.GetProperty("synced_story_count").GetInt32());
+        Assert.Equal(1, metadata.RootElement.GetProperty("skipped_story_count").GetInt32());
+        Assert.Equal(0, metadata.RootElement.GetProperty("failed_scenario_count").GetInt32());
+        Assert.Equal(3, await dbContext.StorySourceLines.CountAsync(line =>
+            line.Story!.ScenarioId == "scenario_event_skip"));
     }
 
     /// <summary>
@@ -284,6 +336,46 @@ public sealed class SyncApiTests : IDisposable
         var json = await ReadJsonAsync(response);
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("msg").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(json.RootElement.GetProperty("trace_id").GetString()));
+    }
+
+    /// <summary>
+    /// Waits until a background sync job reaches the expected status.
+    /// </summary>
+    private async Task<SyncJob> WaitForSyncJobAsync(long syncJobId, string expectedStatus)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var dbContext = fixture.CreateDbContext();
+            var job = await dbContext.SyncJobs.AsNoTracking().SingleAsync(item => item.Id == syncJobId);
+            if (job.Status == expectedStatus)
+            {
+                return job;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException($"Sync job {syncJobId} did not reach {expectedStatus}.");
+    }
+
+    /// <summary>
+    /// Waits until the background sync has requested a search index refresh.
+    /// </summary>
+    private async Task WaitForSearchRefreshAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (searchIndexHandler.RebuildBodies.Count > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException("Search index refresh was not requested.");
     }
 
     /// <summary>
@@ -507,6 +599,11 @@ public sealed class SyncApiTests : IDisposable
                 return JsonAsync("[]");
             }
 
+            if (path.StartsWith("/assets/", StringComparison.Ordinal))
+            {
+                ScenarioRequestCount++;
+            }
+
             if ((path == $"/assets/event_story/event_story_901001/scenario/{scenarioId}.json" && scenarioSucceeds)
                 || (path == $"/assets/event_story/event_story_901001/scenario/{extraScenarioId}.json" && extraScenarioSucceeds))
             {
@@ -532,6 +629,11 @@ public sealed class SyncApiTests : IDisposable
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
+
+        /// <summary>
+        /// Gets the number of scenario asset requests received by this fake handler.
+        /// </summary>
+        public int ScenarioRequestCount { get; private set; }
 
         /// <summary>
         /// Builds a JSON HTTP response for fake upstream payloads.

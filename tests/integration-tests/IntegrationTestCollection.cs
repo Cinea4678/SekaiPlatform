@@ -3,7 +3,7 @@ namespace SekaiPlatform.IntegrationTests;
 /// <summary>
 /// Shares the integration database fixture across tests that mutate seeded data.
 /// </summary>
-[CollectionDefinition(Name)]
+[CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class IntegrationTestCollection : ICollectionFixture<IntegrationTestDatabaseFixture>
 {
     /// <summary>

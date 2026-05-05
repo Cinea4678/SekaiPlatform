@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
 using SekaiPlatform.SourceSync.Catalog;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SekaiPlatform.SourceSync;
 
@@ -36,6 +38,25 @@ public sealed class SourceStorySyncRunner(
     }
 
     /// <summary>
+    /// Creates a pending source sync job that can be completed by a background runner.
+    /// </summary>
+    /// <param name="triggerType">Trigger type stored on the sync job.</param>
+    /// <param name="cancellationToken">Token used to cancel job creation.</param>
+    /// <returns>The persisted pending sync job.</returns>
+    public async Task<SyncJob> CreatePendingJobAsync(string triggerType, CancellationToken cancellationToken)
+    {
+        if (await HasActiveSyncJobAsync(cancellationToken))
+        {
+            throw new SourceSyncAlreadyRunningException();
+        }
+
+        var job = CreatePendingJob(triggerType);
+        dbContext.SyncJobs.Add(job);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return job;
+    }
+
+    /// <summary>
     /// Executes one source story sync job and returns the changed stories alongside the job record.
     /// </summary>
     /// <param name="triggerType">Trigger type stored on the sync job.</param>
@@ -43,6 +64,11 @@ public sealed class SourceStorySyncRunner(
     /// <returns>The persisted sync job record and successfully synchronized story identifiers.</returns>
     public async Task<SourceStorySyncRunResult> RunWithResultAsync(string triggerType, CancellationToken cancellationToken)
     {
+        if (await HasActiveSyncJobAsync(cancellationToken))
+        {
+            throw new SourceSyncAlreadyRunningException();
+        }
+
         var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
         if (!lockAcquired)
         {
@@ -53,72 +79,19 @@ public sealed class SourceStorySyncRunner(
         IReadOnlyList<long> syncedStoryIds = [];
         try
         {
-            var now = DateTimeOffset.UtcNow;
-            job = new SyncJob
-            {
-                JobType = SourceSyncConstants.JobType,
-                TriggerType = triggerType,
-                Status = SourceSyncConstants.StatusPending,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
+            job = CreatePendingJob(triggerType);
             dbContext.SyncJobs.Add(job);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            job.Status = SourceSyncConstants.StatusRunning;
-            job.StartedAt = DateTimeOffset.UtcNow;
-            job.UpdatedAt = job.StartedAt.Value;
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            var masterData = await masterClient.FetchAsync(cancellationToken);
-            var drafts = catalogBuilder.Build(masterData);
-            var character2ds = UnityScenarioParser.BuildCharacter2dMap(masterData.Character2ds);
-            var mobCharacters = UnityScenarioParser.BuildMobCharacterMap(masterData.MobCharacters);
-            var gameCharacters = UnityScenarioParser.BuildGameCharacterMap(masterData.GameCharacters);
-
-            var results = await SyncDraftsAsync(drafts, character2ds, mobCharacters, gameCharacters, cancellationToken);
-            syncedStoryIds = results.SyncedStoryIds;
-
-            var allScenariosFailed = drafts.Count > 0 && results.SyncedStories == 0 && results.Failures.Count > 0;
-            job.Status = allScenariosFailed ? SourceSyncConstants.StatusFailed : SourceSyncConstants.StatusSucceeded;
-            job.ErrorMessage = allScenariosFailed ? "原文同步失败。" : null;
-            job.EndedAt = DateTimeOffset.UtcNow;
-            job.UpdatedAt = job.EndedAt.Value;
-            job.Metadata = SourceSyncJson.Serialize(new
-            {
-                source = SourceSyncConstants.Source,
-                version = masterData.Version,
-                story_count = drafts.Count,
-                synced_story_count = results.SyncedStories,
-                source_line_count = results.SourceLines,
-                failed_scenario_count = results.Failures.Count,
-                failed_scenario_samples = results.Failures.Take(options.FailureSampleLimit)
-            });
-            await dbContext.SaveChangesAsync(cancellationToken);
+            syncedStoryIds = await ExecuteJobAsync(job, cancellationToken);
         }
         catch (OperationCanceledException) when (job is not null)
         {
-            job.Status = SourceSyncConstants.StatusFailed;
-            job.EndedAt = DateTimeOffset.UtcNow;
-            job.UpdatedAt = job.EndedAt.Value;
-            job.ErrorMessage = "原文同步已取消。";
-            job.Metadata = SourceSyncJson.Serialize(new
-            {
-                source = SourceSyncConstants.Source
-            });
-            await dbContext.SaveChangesAsync(CancellationToken.None);
+            await MarkJobFailedAsync(job, "原文同步已取消。", CancellationToken.None);
         }
         catch (Exception) when (job is not null)
         {
-            job.Status = SourceSyncConstants.StatusFailed;
-            job.EndedAt = DateTimeOffset.UtcNow;
-            job.UpdatedAt = job.EndedAt.Value;
-            job.ErrorMessage = "原文同步失败。";
-            job.Metadata = SourceSyncJson.Serialize(new
-            {
-                source = SourceSyncConstants.Source
-            });
-            await dbContext.SaveChangesAsync(CancellationToken.None);
+            await MarkJobFailedAsync(job, "原文同步失败。", CancellationToken.None);
         }
         finally
         {
@@ -128,6 +101,95 @@ public sealed class SourceStorySyncRunner(
         return new SourceStorySyncRunResult(
             job ?? throw new InvalidOperationException("Source story sync job was not created."),
             syncedStoryIds);
+    }
+
+    /// <summary>
+    /// Executes an already-created pending sync job and records its final status.
+    /// </summary>
+    /// <param name="syncJobId">Pending sync job identifier.</param>
+    /// <param name="cancellationToken">Token used to cancel the sync workflow.</param>
+    /// <returns>The persisted sync job record and successfully synchronized story identifiers.</returns>
+    public async Task<SourceStorySyncRunResult> RunPendingJobWithResultAsync(
+        long syncJobId,
+        CancellationToken cancellationToken)
+    {
+        var lockAcquired = await TryAcquireSyncLockAsync(cancellationToken);
+        SyncJob? job = null;
+        IReadOnlyList<long> syncedStoryIds = [];
+        try
+        {
+            job = await dbContext.SyncJobs.FindAsync([syncJobId], cancellationToken)
+                ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not found.");
+
+            if (!lockAcquired)
+            {
+                await MarkJobFailedAsync(job, "原文同步任务正在运行。", cancellationToken);
+                return new SourceStorySyncRunResult(job, syncedStoryIds);
+            }
+
+            syncedStoryIds = await ExecuteJobAsync(job, cancellationToken);
+        }
+        catch (OperationCanceledException) when (job is not null)
+        {
+            await MarkJobFailedAsync(job, "原文同步已取消。", CancellationToken.None);
+        }
+        catch (Exception) when (job is not null)
+        {
+            await MarkJobFailedAsync(job, "原文同步失败。", CancellationToken.None);
+        }
+        finally
+        {
+            if (lockAcquired)
+            {
+                await ReleaseSyncLockAsync();
+            }
+        }
+
+        return new SourceStorySyncRunResult(
+            job ?? throw new InvalidOperationException($"Source story sync job {syncJobId} was not loaded."),
+            syncedStoryIds);
+    }
+
+    /// <summary>
+    /// Runs the external source sync workflow for an existing job row.
+    /// </summary>
+    /// <param name="job">Persisted sync job to update.</param>
+    /// <param name="cancellationToken">Token used to cancel database and network work.</param>
+    /// <returns>Story identifiers whose source lines were replaced.</returns>
+    private async Task<IReadOnlyList<long>> ExecuteJobAsync(SyncJob job, CancellationToken cancellationToken)
+    {
+        job.Status = SourceSyncConstants.StatusRunning;
+        job.StartedAt = DateTimeOffset.UtcNow;
+        job.UpdatedAt = job.StartedAt.Value;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var masterData = await masterClient.FetchAsync(cancellationToken);
+        var drafts = catalogBuilder.Build(masterData);
+        var character2ds = UnityScenarioParser.BuildCharacter2dMap(masterData.Character2ds);
+        var mobCharacters = UnityScenarioParser.BuildMobCharacterMap(masterData.MobCharacters);
+        var gameCharacters = UnityScenarioParser.BuildGameCharacterMap(masterData.GameCharacters);
+
+        var results = await SyncDraftsAsync(drafts, character2ds, mobCharacters, gameCharacters, cancellationToken);
+
+        var allScenariosFailed = drafts.Count > 0 && results.SyncedStories == 0 && results.Failures.Count > 0;
+        job.Status = allScenariosFailed ? SourceSyncConstants.StatusFailed : SourceSyncConstants.StatusSucceeded;
+        job.ErrorMessage = allScenariosFailed ? "原文同步失败。" : null;
+        job.EndedAt = DateTimeOffset.UtcNow;
+        job.UpdatedAt = job.EndedAt.Value;
+        job.Metadata = SourceSyncJson.Serialize(new
+        {
+            source = SourceSyncConstants.Source,
+            version = masterData.Version,
+            story_count = drafts.Count,
+            synced_story_count = results.SyncedStories,
+            skipped_story_count = results.SkippedStories,
+            source_line_count = results.SourceLines,
+            failed_scenario_count = results.Failures.Count,
+            failed_scenario_samples = results.Failures.Take(options.FailureSampleLimit)
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return results.SyncedStoryIds;
     }
 
     /// <summary>
@@ -179,60 +241,229 @@ public sealed class SourceStorySyncRunner(
         CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+        var existingStoryStates = await LoadExistingStoryStatesAsync(cancellationToken);
         var groups = await UpsertGroupsAsync(drafts.Select(item => item.Group), now, cancellationToken);
         var stories = await UpsertStoriesAsync(drafts, groups, now, cancellationToken);
 
         var syncedStories = 0;
+        var skippedStories = 0;
         var sourceLines = 0;
         var syncedStoryIds = new List<long>();
         var failures = new List<ScenarioFailure>();
-        foreach (var draft in drafts)
+        var concurrency = Math.Max(1, options.ScenarioDownloadConcurrency);
+        var downloads = drafts
+            .Where(draft => !CanSkipScenarioDownload(draft, existingStoryStates))
+            .ToArray();
+        skippedStories = drafts.Count - downloads.Length;
+
+        for (var i = 0; i < downloads.Length; i += concurrency)
         {
-            var story = stories[$"{draft.Story.StoryType}:{draft.Story.ScenarioId}"];
-            IReadOnlyList<SourceLineDraft> lines;
-            try
+            var chunk = downloads.Skip(i).Take(concurrency).ToArray();
+            var parsedScenarios = await Task.WhenAll(chunk.Select(draft =>
+                DownloadAndParseScenarioAsync(draft, character2ds, mobCharacters, gameCharacters, cancellationToken)));
+
+            foreach (var parsedScenario in parsedScenarios)
             {
-                var downloaded = await scenarioClient.DownloadAsync(draft.Download, cancellationToken);
-                lines = scenarioParser.Parse(downloaded.Json, character2ds, mobCharacters, gameCharacters);
-                if (lines.Count == 0)
+                if (parsedScenario.Failure is not null)
                 {
-                    throw new InvalidOperationException("Scenario did not produce source lines.");
+                    failures.Add(parsedScenario.Failure);
+                    continue;
                 }
+
+                var draft = parsedScenario.Draft;
+                var story = stories[$"{draft.Story.StoryType}:{draft.Story.ScenarioId}"];
+                var lines = parsedScenario.Lines;
+
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                await dbContext.StorySourceLines
+                    .Where(line => line.StoryId == story.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+
+                var lineTimestamp = DateTimeOffset.UtcNow;
+                dbContext.StorySourceLines.AddRange(lines.Select(line => new StorySourceLine
+                {
+                    StoryId = story.Id,
+                    LineNo = line.LineNo,
+                    LineType = line.LineType,
+                    Speaker = line.Speaker,
+                    Text = line.Text,
+                    Metadata = line.Metadata,
+                    CreatedAt = lineTimestamp,
+                    UpdatedAt = lineTimestamp
+                }));
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                syncedStories++;
+                syncedStoryIds.Add(story.Id);
+                sourceLines += lines.Count;
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+        }
+
+        return new SyncDraftResults(syncedStories, skippedStories, sourceLines, syncedStoryIds, failures);
+    }
+
+    /// <summary>
+    /// Loads the persisted story metadata and whether source lines already exist before upserting master records.
+    /// </summary>
+    /// <param name="cancellationToken">Token used to cancel database reads.</param>
+    /// <returns>Existing story state keyed by story type and scenario ID.</returns>
+    private async Task<IReadOnlyDictionary<string, ExistingStoryState>> LoadExistingStoryStatesAsync(
+        CancellationToken cancellationToken)
+    {
+        var existingStories = await dbContext.Stories
+            .Select(story => new
             {
-                failures.Add(new ScenarioFailure(
+                story.Id,
+                story.StoryType,
+                story.ScenarioId,
+                story.Metadata
+            })
+            .ToArrayAsync(cancellationToken);
+
+        if (existingStories.Length == 0)
+        {
+            return new Dictionary<string, ExistingStoryState>(StringComparer.Ordinal);
+        }
+
+        var storiesWithSourceLines = await dbContext.StorySourceLines
+            .Select(line => line.StoryId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        var storyIdsWithSourceLines = storiesWithSourceLines.ToHashSet();
+
+        return existingStories.ToDictionary(
+            story => $"{story.StoryType}:{story.ScenarioId}",
+            story => new ExistingStoryState(story.Metadata, storyIdsWithSourceLines.Contains(story.Id)),
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Determines whether a scenario asset can be skipped because the story metadata and source lines already exist.
+    /// </summary>
+    /// <param name="draft">Story draft built from the current master data.</param>
+    /// <param name="existingStoryStates">Persisted story state before this sync run updates master metadata.</param>
+    /// <returns><see langword="true"/> when the scenario download is unchanged and can be skipped.</returns>
+    private static bool CanSkipScenarioDownload(
+        StorySyncDraft draft,
+        IReadOnlyDictionary<string, ExistingStoryState> existingStoryStates)
+    {
+        var key = $"{draft.Story.StoryType}:{draft.Story.ScenarioId}";
+        return existingStoryStates.TryGetValue(key, out var state)
+            && state.HasSourceLines
+            && JsonMetadataEquals(state.Metadata, draft.Story.Metadata);
+    }
+
+    /// <summary>
+    /// Compares JSON metadata semantically because PostgreSQL jsonb does not preserve property order.
+    /// </summary>
+    /// <param name="storedMetadata">Metadata already stored in the database.</param>
+    /// <param name="draftMetadata">Metadata generated from the current master data.</param>
+    /// <returns><see langword="true"/> when both metadata payloads describe the same source state.</returns>
+    private static bool JsonMetadataEquals(string? storedMetadata, string draftMetadata)
+    {
+        if (string.IsNullOrWhiteSpace(storedMetadata))
+        {
+            return false;
+        }
+
+        try
+        {
+            return JsonNode.DeepEquals(JsonNode.Parse(storedMetadata), JsonNode.Parse(draftMetadata));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Downloads and parses one scenario without touching the database context.
+    /// </summary>
+    /// <param name="draft">Story draft that describes the scenario to download.</param>
+    /// <param name="character2ds">Character 2D lookup keyed by character2d ID.</param>
+    /// <param name="mobCharacters">Mob character names keyed by mob character ID.</param>
+    /// <param name="gameCharacters">Game character names keyed by game character ID.</param>
+    /// <param name="cancellationToken">Token used to cancel scenario download and parsing.</param>
+    /// <returns>Parsed source lines or a stable failure sample.</returns>
+    private async Task<ParsedScenario> DownloadAndParseScenarioAsync(
+        StorySyncDraft draft,
+        IReadOnlyDictionary<int, Character2dInfo> character2ds,
+        IReadOnlyDictionary<int, string> mobCharacters,
+        IReadOnlyDictionary<int, string> gameCharacters,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var downloaded = await scenarioClient.DownloadAsync(draft.Download, cancellationToken);
+            var lines = scenarioParser.Parse(downloaded.Json, character2ds, mobCharacters, gameCharacters);
+            if (lines.Count == 0)
+            {
+                throw new InvalidOperationException("Scenario did not produce source lines.");
+            }
+
+            return new ParsedScenario(draft, lines, null);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new ParsedScenario(
+                draft,
+                [],
+                new ScenarioFailure(
                     draft.Story.StoryType,
                     draft.Story.ScenarioId,
                     "剧情下载或解析失败。"));
-                continue;
-            }
-
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            await dbContext.StorySourceLines
-                .Where(line => line.StoryId == story.Id)
-                .ExecuteDeleteAsync(cancellationToken);
-
-            var lineTimestamp = DateTimeOffset.UtcNow;
-            dbContext.StorySourceLines.AddRange(lines.Select(line => new StorySourceLine
-            {
-                StoryId = story.Id,
-                LineNo = line.LineNo,
-                LineType = line.LineType,
-                Speaker = line.Speaker,
-                Text = line.Text,
-                Metadata = line.Metadata,
-                CreatedAt = lineTimestamp,
-                UpdatedAt = lineTimestamp
-            }));
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            syncedStories++;
-            syncedStoryIds.Add(story.Id);
-            sourceLines += lines.Count;
         }
+    }
 
-        return new SyncDraftResults(syncedStories, sourceLines, syncedStoryIds, failures);
+    /// <summary>
+    /// Checks whether a source sync job is already pending or running.
+    /// </summary>
+    /// <param name="cancellationToken">Token used to cancel the database query.</param>
+    /// <returns><see langword="true"/> when another source sync job is active.</returns>
+    private Task<bool> HasActiveSyncJobAsync(CancellationToken cancellationToken)
+    {
+        return dbContext.SyncJobs.AnyAsync(job =>
+            job.JobType == SourceSyncConstants.JobType
+            && (job.Status == SourceSyncConstants.StatusPending || job.Status == SourceSyncConstants.StatusRunning),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a new pending sync job entity with source metadata.
+    /// </summary>
+    /// <param name="triggerType">Trigger type stored on the sync job.</param>
+    /// <returns>A new unsaved sync job entity.</returns>
+    private static SyncJob CreatePendingJob(string triggerType)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new SyncJob
+        {
+            JobType = SourceSyncConstants.JobType,
+            TriggerType = triggerType,
+            Status = SourceSyncConstants.StatusPending,
+            Metadata = SourceSyncJson.Serialize(new { source = SourceSyncConstants.Source }),
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
+
+    /// <summary>
+    /// Marks a sync job as failed with stable source metadata.
+    /// </summary>
+    /// <param name="job">Persisted sync job to update.</param>
+    /// <param name="errorMessage">Failure message stored on the job.</param>
+    /// <param name="cancellationToken">Token used to cancel the database update.</param>
+    private async Task MarkJobFailedAsync(SyncJob job, string errorMessage, CancellationToken cancellationToken)
+    {
+        job.Status = SourceSyncConstants.StatusFailed;
+        job.EndedAt = DateTimeOffset.UtcNow;
+        job.UpdatedAt = job.EndedAt.Value;
+        job.ErrorMessage = errorMessage;
+        job.Metadata = SourceSyncJson.Serialize(new
+        {
+            source = SourceSyncConstants.Source
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -348,9 +579,28 @@ public sealed record ScenarioFailure(
 /// <param name="Failures">Failed scenario samples.</param>
 internal sealed record SyncDraftResults(
     int SyncedStories,
+    int SkippedStories,
     int SourceLines,
     IReadOnlyList<long> SyncedStoryIds,
     IReadOnlyList<ScenarioFailure> Failures);
+
+/// <summary>
+/// Existing persisted story state used to decide whether scenario content can be skipped.
+/// </summary>
+/// <param name="Metadata">Story metadata from the previous successful master sync.</param>
+/// <param name="HasSourceLines">Whether this story already has parsed source lines.</param>
+internal sealed record ExistingStoryState(string? Metadata, bool HasSourceLines);
+
+/// <summary>
+/// Result of downloading and parsing one scenario before database writes.
+/// </summary>
+/// <param name="Draft">Story draft that produced this result.</param>
+/// <param name="Lines">Parsed source lines, or an empty list when parsing failed.</param>
+/// <param name="Failure">Failure sample when the scenario could not be synchronized.</param>
+internal sealed record ParsedScenario(
+    StorySyncDraft Draft,
+    IReadOnlyList<SourceLineDraft> Lines,
+    ScenarioFailure? Failure);
 
 /// <summary>
 /// Result of running a source story synchronization workflow.
