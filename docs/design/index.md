@@ -134,7 +134,7 @@ Search Service 提供内部索引维护接口 `POST /internal/search/index/rebui
 
 导入接口应支持：
 
-- 指定租户。
+- 写入当前 token 的租户，不接受客户端指定租户。
 - 指定剧情或通过外部标识匹配剧情。
 - 以 JSON 形式上传批量导入目标结构体。
 - 导入后更新 PostgreSQL 和 Elasticsearch。

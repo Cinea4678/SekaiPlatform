@@ -19,6 +19,12 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueLimit = 0;
         limiter.Window = TimeSpan.FromMinutes(1);
     });
+    options.AddFixedWindowLimiter("import-write", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.QueueLimit = 0;
+        limiter.Window = TimeSpan.FromMinutes(1);
+    });
 });
 
 var app = builder.Build();
@@ -36,6 +42,7 @@ app.MapHealthChecks("/health");
 app.MapAuthProxyEndpoints();
 app.MapSearchProxyEndpoints();
 app.MapSyncProxyEndpoints();
+app.MapImportProxyEndpoints();
 app.MapInternalServicesHealthEndpoints();
 
 await DatabaseInitializer.InitializeAsync(app);

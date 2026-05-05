@@ -18,6 +18,7 @@ var app = builder.Build();
 app.UseSekaiPlatformWebDefaults();
 app.MapHealthChecks("/health");
 app.MapSyncEndpoints();
+app.MapImportEndpoints();
 
 app.Run();
 

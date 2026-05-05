@@ -41,7 +41,6 @@ http://localhost:8080
 | Sync | GET | `/api/sync/jobs` | 查询同步任务列表 |
 | Sync | GET | `/api/sync/jobs/{syncJobId}` | 查询同步任务详情 |
 | Import | POST | `/api/import/translation-versions` | 批量导入历史译文 |
-| Import | GET | `/api/import/jobs/{importJobId}` | 查询导入任务详情 |
 
 ## 核心对象
 
@@ -59,7 +58,6 @@ http://localhost:8080
 | `TranslationLine` | 对应 `translation_lines`，按当前租户隔离 |
 | `SearchHit` | 搜索服务返回的行级命中结果 |
 | `SyncJob` | 外部数据源同步任务 |
-| `ImportJob` | 历史译文导入任务 |
 
 ## 全局约定
 
@@ -340,10 +338,22 @@ GET /api/search?keyword=...&page=1&page_size=20
 
 输入：
 
-- 批量导入目标结构体
+- `items`：导入项数组。
+- `items[].story_type`：剧情类型。
+- `items[].scenario_id`：scenario ID。
+- `items[].title`：翻译版本标题，可空。
+- `items[].lines`：译文行数组。
+- `items[].lines[].line_no`：原文行号。
+- `items[].lines[].text`：译文文本。
+- `items[].lines[].speaker`：译文说话人，可空。
+- `items[].lines[].metadata`：译文行扩展信息，可空。
 
 处理规则：
 
 - 写入当前租户的译文数据。
 - 导入后更新 PostgreSQL。
 - 导入后更新 Elasticsearch。
+- 一次请求可导入多个剧情。
+- 剧情通过 `story_type + scenario_id` 匹配。
+- 翻译行通过 `line_no` 匹配原文行。
+- 任意项校验失败时整批不写入。

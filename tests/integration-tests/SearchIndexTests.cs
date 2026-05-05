@@ -81,6 +81,54 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
     }
 
     /// <summary>
+    /// Rebuilds translation documents through the tenant-bound translation refresh scope.
+    /// </summary>
+    [Fact]
+    public async Task RebuildTranslation_WithTranslationRefreshScope_RequiresMatchingTenant()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var seed = await SeedSearchStoryAsync(dbContext, "search_translation_refresh");
+        var elasticsearch = new FakeElasticsearchHandler();
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+
+        using var response = await PostTranslationRefreshAsync(client, new
+        {
+            scope = "translation",
+            tenant_id = seed.TenantId,
+            translation_version_ids = new[] { seed.TranslationVersionId }
+        }, seed.TenantId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var document = Assert.Single(elasticsearch.IndexedDocuments);
+        Assert.Equal(seed.TranslationVersionId, document.GetProperty("translation_version_id").GetInt64());
+        Assert.Contains(seed.TranslationVersionId.ToString(), Assert.Single(elasticsearch.DeleteByQueryBodies), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Rejects translation refresh tokens whose tenant claim does not match the requested tenant.
+    /// </summary>
+    [Fact]
+    public async Task RebuildTranslation_WithTranslationRefreshTenantMismatch_ReturnsForbidden()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var seed = await SeedSearchStoryAsync(dbContext, "search_translation_refresh_forbidden");
+        var elasticsearch = new FakeElasticsearchHandler();
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+
+        using var response = await PostTranslationRefreshAsync(client, new
+        {
+            scope = "translation",
+            tenant_id = seed.TenantId + 1,
+            translation_version_ids = new[] { seed.TranslationVersionId }
+        }, seed.TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(elasticsearch.DeleteByQueryBodies);
+    }
+
+    /// <summary>
     /// Ensures partial source rebuild deletes only matching source documents before bulk indexing.
     /// </summary>
     [Fact]
@@ -511,6 +559,25 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
                 SekaiInternalAuthDefaults.AssetServiceActor,
                 SekaiInternalAuthDefaults.SearchServiceActor,
                 SekaiInternalAuthDefaults.SearchIndexRebuildScope));
+        return client.SendAsync(request);
+    }
+
+    /// <summary>
+    /// Sends an authorized tenant-bound translation refresh request.
+    /// </summary>
+    private static Task<HttpResponseMessage> PostTranslationRefreshAsync(HttpClient client, object body, long tenantId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/internal/search/index/rebuild")
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.AssetServiceActor,
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchTranslationRefreshScope,
+                tenantId: tenantId));
         return client.SendAsync(request);
     }
 }

@@ -25,7 +25,7 @@ internal static class SyncEndpoints
             ILogger<SourceStorySyncRunner> logger,
             CancellationToken cancellationToken) =>
         {
-            if (!await IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
+            if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
             }
@@ -68,7 +68,7 @@ internal static class SyncEndpoints
             ICurrentRequestContextAccessor contextAccessor,
             CancellationToken cancellationToken) =>
         {
-            if (!await IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
+            if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
             }
@@ -92,7 +92,7 @@ internal static class SyncEndpoints
             ICurrentRequestContextAccessor contextAccessor,
             CancellationToken cancellationToken) =>
         {
-            if (!await IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
+            if (!await TenantAdminGuard.IsCurrentTenantAdminAsync(dbContext, contextAccessor, cancellationToken))
             {
                 return SyncEndpointResults.Error(contextAccessor, StatusCodes.Status403Forbidden, "Forbidden.");
             }
@@ -108,31 +108,6 @@ internal static class SyncEndpoints
             requireTenant: true);
 
         return app;
-    }
-
-    /// <summary>
-    /// Checks whether the current request user can administer the selected tenant.
-    /// </summary>
-    private static async Task<bool> IsCurrentTenantAdminAsync(
-        SekaiPlatformDbContext dbContext,
-        ICurrentRequestContextAccessor contextAccessor,
-        CancellationToken cancellationToken)
-    {
-        var context = contextAccessor.GetCurrent();
-        if (context.UserId is null || context.TenantId is null)
-        {
-            return false;
-        }
-
-        var role = await dbContext.UserTenants
-            .Where(item =>
-                item.TenantId == context.TenantId.Value
-                && item.UserId == context.UserId.Value
-                && item.Status == UserTenantStatuses.Active)
-            .Select(item => item.Role)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return role is UserTenantRoles.Admin or UserTenantRoles.SuperAdmin;
     }
 
     /// <summary>

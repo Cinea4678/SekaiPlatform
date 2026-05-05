@@ -209,6 +209,14 @@ internal sealed class ElasticsearchIndexClient(HttpClient httpClient, IOptions<S
             });
         }
 
+        if (request.TranslationVersionIds is { Length: > 0 })
+        {
+            filters.Add(new JsonObject
+            {
+                ["terms"] = new JsonObject { ["translation_version_id"] = ToJsonArray(request.TranslationVersionIds) }
+            });
+        }
+
         return new JsonObject
         {
             ["bool"] = new JsonObject { ["filter"] = filters }

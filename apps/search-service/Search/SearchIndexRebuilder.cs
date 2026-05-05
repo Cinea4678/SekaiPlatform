@@ -132,6 +132,11 @@ internal sealed class SearchIndexRebuilder(
             query = query.Where(item => item.version.Id == request.TranslationVersionId.Value);
         }
 
+        if (request.TranslationVersionIds is { Length: > 0 })
+        {
+            query = query.Where(item => request.TranslationVersionIds.Contains(item.version.Id));
+        }
+
         return await query
             .OrderBy(item => item.version.Id)
             .ThenBy(item => item.line.LineNo)

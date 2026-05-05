@@ -93,9 +93,10 @@ internal static class SyncProxyEndpoints
         if (method == HttpMethod.Post && httpContext.Request.ContentLength is > 0)
         {
             request.Content = new StreamContent(httpContext.Request.Body);
-            if (!string.IsNullOrWhiteSpace(httpContext.Request.ContentType))
+            if (!string.IsNullOrWhiteSpace(httpContext.Request.ContentType)
+                && MediaTypeHeaderValue.TryParse(httpContext.Request.ContentType, out var contentType))
             {
-                request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(httpContext.Request.ContentType);
+                request.Content.Headers.ContentType = contentType;
             }
         }
 

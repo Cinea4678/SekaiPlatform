@@ -81,9 +81,19 @@ public static class SekaiInternalAuthDefaults
     public const string SyncJobsReadScope = "sync.jobs.read";
 
     /// <summary>
+    /// Scope for importing tenant translation versions through Asset Service.
+    /// </summary>
+    public const string TranslationsImportWriteScope = "translations.import.write";
+
+    /// <summary>
     /// Scope for rebuilding Search Service index documents.
     /// </summary>
     public const string SearchIndexRebuildScope = "search.index.rebuild";
+
+    /// <summary>
+    /// Scope for refreshing tenant translation search documents after user-triggered imports.
+    /// </summary>
+    public const string SearchTranslationRefreshScope = "search.translation.refresh";
 
     /// <summary>
     /// Scope for querying language assets through Search Service.

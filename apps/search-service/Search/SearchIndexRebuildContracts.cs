@@ -36,6 +36,12 @@ internal sealed class SearchIndexRebuildRequest
     /// </summary>
     [JsonPropertyName("translation_version_id")]
     public long? TranslationVersionId { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional translation version IDs used for translation partial rebuilds.
+    /// </summary>
+    [JsonPropertyName("translation_version_ids")]
+    public long[]? TranslationVersionIds { get; set; }
 }
 
 /// <summary>

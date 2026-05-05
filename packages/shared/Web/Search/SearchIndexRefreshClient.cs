@@ -15,6 +15,7 @@ public sealed class SearchIndexRefreshClient(
 {
     private const string RebuildPath = "/internal/search/index/rebuild";
     private const string StoryRefreshScope = "all";
+    private const string TranslationRefreshScope = "translation";
     private const int MaxLoggedErrorBodyLength = 512;
 
     /// <summary>
@@ -33,16 +34,66 @@ public sealed class SearchIndexRefreshClient(
             return SearchIndexRefreshResult.Succeeded();
         }
 
+        return await SendRefreshAsync(
+            new StoryIndexRefreshRequest(StoryRefreshScope, distinctStoryIds),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Refreshes translation index documents for tenant-owned translation versions.
+    /// </summary>
+    /// <param name="tenantId">Tenant that owns the translation versions.</param>
+    /// <param name="translationVersionIds">Translation version identifiers to refresh.</param>
+    /// <param name="cancellationToken">Token used to cancel the refresh request.</param>
+    /// <returns>The refresh request result, including error response details when available.</returns>
+    public async Task<SearchIndexRefreshResult> RefreshTranslationVersionsAsync(
+        long tenantId,
+        IReadOnlyCollection<long> translationVersionIds,
+        CancellationToken cancellationToken)
+    {
+        var distinctVersionIds = translationVersionIds.Distinct().ToArray();
+        if (distinctVersionIds.Length == 0)
+        {
+            return SearchIndexRefreshResult.Succeeded();
+        }
+
+        return await SendRefreshAsync(
+            new TranslationIndexRefreshRequest(TranslationRefreshScope, tenantId, distinctVersionIds),
+            SekaiInternalAuthDefaults.SearchTranslationRefreshScope,
+            tenantId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends an authorized Search Service rebuild request.
+    /// </summary>
+    private async Task<SearchIndexRefreshResult> SendRefreshAsync(
+        object body,
+        CancellationToken cancellationToken)
+    {
+        return await SendRefreshAsync(body, SekaiInternalAuthDefaults.SearchIndexRebuildScope, tenantId: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends an authorized Search Service rebuild request.
+    /// </summary>
+    private async Task<SearchIndexRefreshResult> SendRefreshAsync(
+        object body,
+        string scope,
+        long? tenantId,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, RebuildPath)
         {
-            Content = JsonContent.Create(new SearchIndexRefreshRequest(StoryRefreshScope, distinctStoryIds))
+            Content = JsonContent.Create(body)
         };
 
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
             "Bearer",
             internalTokenIssuer.Issue(
                 SekaiInternalAuthDefaults.SearchServiceActor,
-                SekaiInternalAuthDefaults.SearchIndexRebuildScope));
+                scope,
+                tenantId: tenantId));
 
         try
         {
@@ -52,8 +103,8 @@ public sealed class SearchIndexRefreshClient(
                 return SearchIndexRefreshResult.Succeeded();
             }
 
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            return SearchIndexRefreshResult.Failed((int)response.StatusCode, Truncate(body));
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            return SearchIndexRefreshResult.Failed((int)response.StatusCode, Truncate(responseBody));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -73,14 +124,14 @@ public sealed class SearchIndexRefreshClient(
         return value.Length <= MaxLoggedErrorBodyLength ? value : value[..MaxLoggedErrorBodyLength];
     }
 
-    /// <summary>
-    /// Request body for refreshing all indexed documents tied to changed stories.
-    /// </summary>
-    /// <param name="Scope">Rebuild scope sent to Search Service.</param>
-    /// <param name="StoryIds">Story identifiers to refresh.</param>
-    private sealed record SearchIndexRefreshRequest(
+    private sealed record StoryIndexRefreshRequest(
         [property: JsonPropertyName("scope")] string Scope,
         [property: JsonPropertyName("story_ids")] long[] StoryIds);
+
+    private sealed record TranslationIndexRefreshRequest(
+        [property: JsonPropertyName("scope")] string Scope,
+        [property: JsonPropertyName("tenant_id")] long TenantId,
+        [property: JsonPropertyName("translation_version_ids")] long[] TranslationVersionIds);
 }
 
 /// <summary>

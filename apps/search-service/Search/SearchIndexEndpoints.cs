@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using SekaiPlatform.Shared.Web.Auth;
 using SekaiPlatform.Shared.Web.Context;
 using SekaiPlatform.Shared.Web.Responses;
@@ -18,6 +20,7 @@ internal static class SearchIndexEndpoints
             SearchIndexRebuildRequest? request,
             SearchIndexRebuilder rebuilder,
             ICurrentRequestContextAccessor contextAccessor,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             request ??= new SearchIndexRebuildRequest();
@@ -29,6 +32,12 @@ internal static class SearchIndexEndpoints
                 return Error(contextAccessor, StatusCodes.Status400BadRequest, "Unsupported search index rebuild scope.");
             }
 
+            var authorizationError = ValidateInternalAuthorization(httpContext, contextAccessor.GetCurrent(), request, scope);
+            if (authorizationError is not null)
+            {
+                return Error(contextAccessor, StatusCodes.Status403Forbidden, authorizationError);
+            }
+
             var validationError = ValidateRequest(request, scope);
             if (validationError is not null)
             {
@@ -37,9 +46,11 @@ internal static class SearchIndexEndpoints
 
             var response = await rebuilder.RebuildAsync(request, cancellationToken);
             return Results.Json(response);
-        }).RequireInternalAuthorization(
-            SekaiInternalAuthDefaults.SearchIndexRebuildScope,
-            [SekaiInternalAuthDefaults.AssetServiceActor, SekaiInternalAuthDefaults.SyncWorkerActor]);
+        }).RequireAuthorization(policy =>
+        {
+            policy.AuthenticationSchemes.Add(JwtBearerDefaults.AuthenticationScheme);
+            policy.RequireAuthenticatedUser();
+        });
 
         return app;
     }
@@ -50,11 +61,19 @@ internal static class SearchIndexEndpoints
     private static string? ValidateRequest(SearchIndexRebuildRequest request, string scope)
     {
         var hasStoryIds = request.StoryIds is { Length: > 0 };
-        var hasTranslationFilter = request.TenantId is not null || request.TranslationVersionId is not null;
+        var hasTranslationVersionIds = request.TranslationVersionIds is { Length: > 0 };
+        var hasTranslationFilter = request.TenantId is not null
+            || request.TranslationVersionId is not null
+            || hasTranslationVersionIds;
         if (request.ForceRecreate
             && (scope != SearchIndexConstants.ScopeAll || hasStoryIds || hasTranslationFilter))
         {
             return "Force recreate only supports a full all-scope rebuild without filters.";
+        }
+
+        if (request.TranslationVersionId is not null && hasTranslationVersionIds)
+        {
+            return "Translation index rebuild does not support both single and multiple translation version filters.";
         }
 
         if (scope == SearchIndexConstants.ScopeSource && hasTranslationFilter)
@@ -68,6 +87,51 @@ internal static class SearchIndexEndpoints
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Validates internal token actor, scope, and tenant binding for index maintenance requests.
+    /// </summary>
+    private static string? ValidateInternalAuthorization(
+        HttpContext httpContext,
+        CurrentRequestContext requestContext,
+        SearchIndexRebuildRequest request,
+        string rebuildScope)
+    {
+        var actor = httpContext.User.FindFirstValue(SekaiInternalAuthDefaults.ActorClaimType);
+        var tokenScope = httpContext.User.FindFirstValue(SekaiInternalAuthDefaults.ScopeClaimType);
+        if (tokenScope == SekaiInternalAuthDefaults.SearchIndexRebuildScope)
+        {
+            return actor is SekaiInternalAuthDefaults.AssetServiceActor or SekaiInternalAuthDefaults.SyncWorkerActor
+                ? null
+                : "Forbidden.";
+        }
+
+        if (tokenScope != SekaiInternalAuthDefaults.SearchTranslationRefreshScope
+            || actor != SekaiInternalAuthDefaults.AssetServiceActor)
+        {
+            return "Forbidden.";
+        }
+
+        if (requestContext.TenantId is null)
+        {
+            return "Forbidden.";
+        }
+
+        if (rebuildScope != SearchIndexConstants.ScopeTranslation)
+        {
+            return "Translation refresh only supports translation scope.";
+        }
+
+        if (request.TenantId is null)
+        {
+            request.TenantId = requestContext.TenantId.Value;
+            return null;
+        }
+
+        return request.TenantId.Value == requestContext.TenantId.Value
+            ? null
+            : "Forbidden.";
     }
 
     /// <summary>

@@ -2,7 +2,7 @@
 
 PJS 字幕组语言资产检索平台。
 
-当前已完成 Phase 6 搜索 API。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
+当前已完成 Phase 7 历史译文批量导入。一期聚焦后端能力：原文同步、历史译文批量导入、租户隔离检索和剧情详情 API。
 
 ## 项目进度
 
@@ -20,9 +20,9 @@ gantt
     Phase 4 外部数据源同步     :done, p4, 2026-05-04, 1d
     Phase 5 搜索索引           :done, p5, 2026-05-05, 1d
     Phase 6 搜索 API           :done, p6, 2026-05-05, 1d
+    Phase 7 历史译文批量导入   :done, p7, 2026-05-05, 1d
 
     section 待排期
-    Phase 7 历史译文批量导入   :p7, after p6, 1d
     Phase 8 剧情详情           :p8, after p7, 1d
     Phase 9 本地交付           :p9, after p8, 1d
 ```
@@ -172,6 +172,51 @@ curl 'http://localhost:8080/api/search?keyword=こんにちは&page=1&page_size=
 
 一期只对原文/译文正文进行关键词匹配；剧情、剧情集和说话人作为结果上下文返回。`page_size` 范围为 1 到 100，且结果窗口 `from + page_size` 不得超过 10000。
 
+## 历史译文导入
+
+Phase 7 已实现公开导入入口 `POST /api/import/translation-versions`。该接口要求用户已登录、已选择当前租户，且当前用户是该租户的 `admin` 或 `super_admin`。
+
+请求只接受 JSON，一次可导入多个剧情的译文版本。每个导入项通过 `story_type + scenario_id` 匹配剧情，通过 `line_no` 匹配原文行；同一租户同一剧情每次导入都会创建新的翻译版本。
+
+```bash
+curl -X POST http://localhost:8080/api/import/translation-versions \
+  -H 'Authorization: Bearer <access-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "items": [
+      {
+        "story_type": "event_story",
+        "scenario_id": "scenario_event_001",
+        "title": "历史译文",
+        "lines": [
+          { "line_no": 1, "text": "译文文本" }
+        ]
+      }
+    ]
+  }'
+```
+
+响应返回本次创建的翻译版本和行数：
+
+```json
+{
+  "items": [
+    {
+      "story_type": "event_story",
+      "scenario_id": "scenario_event_001",
+      "story_id": 123,
+      "translation_version_id": 456,
+      "version_no": 1,
+      "line_count": 1
+    }
+  ],
+  "total_versions": 1,
+  "total_lines": 1
+}
+```
+
+导入请求按整批事务处理，任意剧情或行校验失败时整批不写入。导入成功后会刷新对应翻译版本的 translation 搜索索引，译文可通过 `/api/search` 在当前租户内检索。
+
 ## .NET 工程
 
 编译 solution：
@@ -233,6 +278,7 @@ deploy/
 - [Phase 4 完成记录](docs/plan/phase-4-status.md)
 - [Phase 5 完成记录](docs/plan/phase-5-status.md)
 - [Phase 6 完成记录](docs/plan/phase-6-status.md)
+- [Phase 7 完成记录](docs/plan/phase-7-status.md)
 
 ## 约定
 
