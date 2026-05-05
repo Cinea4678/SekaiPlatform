@@ -493,6 +493,46 @@ public sealed class ImportApiTests : IDisposable
         Assert.Contains(SekaiInternalAuthDefaults.AssetServiceActor, jwt.Audiences);
     }
 
+    /// <summary>
+    /// Verifies import write rate limiting is partitioned by the client IP from X-Forwarded-For.
+    /// </summary>
+    [Fact]
+    public async Task ApiImportRateLimit_UsesForwardedForIpPartitions()
+    {
+        using var fakeAsset = new FakeAssetServiceHandler();
+        await using var apiFactoryWithFakeAsset = new ApiServiceFactory(
+            fixture.ConnectionString,
+            authFactory,
+            fakeAsset);
+        using var client = apiFactoryWithFakeAsset.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.AdminQqId,
+            IntegrationTestDatabaseFixture.AdminPassword);
+
+        for (var i = 0; i < 60; i++)
+        {
+            using var response = await SendImportWithForwardedForAsync(
+                client,
+                login.Token,
+                "203.0.113.10, 10.0.0.1");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        using var limitedResponse = await SendImportWithForwardedForAsync(
+            client,
+            login.Token,
+            "203.0.113.10, 10.0.0.1");
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedResponse.StatusCode);
+
+        using var otherIpResponse = await SendImportWithForwardedForAsync(
+            client,
+            login.Token,
+            "203.0.113.11");
+        Assert.Equal(HttpStatusCode.OK, otherIpResponse.StatusCode);
+        Assert.Equal(61, fakeAsset.InternalTokens.Count);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -615,6 +655,23 @@ public sealed class ImportApiTests : IDisposable
             Content = JsonContent.Create(body)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await client.SendAsync(request);
+    }
+
+    /// <summary>
+    /// Sends an authenticated import request with an X-Forwarded-For client IP chain.
+    /// </summary>
+    private static async Task<HttpResponseMessage> SendImportWithForwardedForAsync(
+        HttpClient client,
+        string token,
+        string forwardedFor)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/import/translation-versions")
+        {
+            Content = JsonContent.Create(new { items = Array.Empty<object>() })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-For", forwardedFor);
         return await client.SendAsync(request);
     }
 
