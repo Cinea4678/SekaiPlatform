@@ -21,7 +21,7 @@ Phase 7：历史译文批量导入已完成。
 - 公开导入接口要求用户已登录并已选择当前租户。
 - Asset Service 继续校验当前用户是当前租户 active `admin` 或 `super_admin`。
 - API Service 调用 Asset Service 时使用 internal token，scope 为 `translations.import.write`。
-- Asset Service 调用 Search Service 刷新索引时使用 `search.index.rebuild`。
+- Asset Service 调用 Search Service 刷新索引时使用 `search.translation.refresh`。
 
 ## 验证
 
