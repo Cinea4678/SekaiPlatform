@@ -15,6 +15,13 @@ builder.Services.AddHttpClient<ElasticsearchIndexClient>((services, client) =>
         .Value;
     client.BaseAddress = new Uri(options.Url);
 });
+builder.Services.AddHttpClient<ElasticsearchSearchClient>((services, client) =>
+{
+    var options = services
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<SearchIndexOptions>>()
+        .Value;
+    client.BaseAddress = new Uri(options.Url);
+});
 builder.Services.AddScoped<SearchIndexRebuilder>();
 builder.Services.AddHealthChecks()
     .AddCheck<ElasticsearchHealthCheck>("elasticsearch")
@@ -25,6 +32,7 @@ var app = builder.Build();
 app.UseSekaiPlatformWebDefaults();
 app.MapHealthChecks("/health");
 app.MapSearchIndexEndpoints();
+app.MapSearchQueryEndpoints();
 
 app.Run();
 

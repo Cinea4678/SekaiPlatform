@@ -272,11 +272,54 @@ HTTP 状态码按业务语义返回 4xx 或 5xx。
 - 关键词
 - 分页参数
 
+请求：
+
+```text
+GET /api/search?keyword=...&page=1&page_size=20
+```
+
+参数：
+
+| 参数 | 说明 |
+|---|---|
+| `keyword` | 搜索关键词，去除首尾空白后不能为空。 |
+| `page` | 页码，从 1 开始，默认 1。 |
+| `page_size` | 每页结果数，默认 20，范围 1 到 100，超出时返回参数错误。 |
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "asset_type": "source",
+      "text": "こんにちは",
+      "highlight_text": "<mark>こんにちは</mark>",
+      "speaker": "ミク",
+      "line_no": 1,
+      "story_id": 301,
+      "story_title": "第1話",
+      "story_type": "event_story",
+      "story_group_id": 201,
+      "story_group_title": "テストイベント",
+      "source_line_id": 401,
+      "translation_version_id": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
+
 约束：
 
 - 原文为全平台共享数据。
 - 译文只搜索当前租户内的数据。
+- 当前一期只对原文/译文正文进行关键词匹配；剧情、剧情集和说话人作为结果上下文返回。
 - 搜索结果按行返回。
+- `page` 和 `page_size` 对应的结果窗口不得超过 10000，超出时返回参数错误。
+- `highlight_text` 优先使用搜索引擎命中高亮；没有高亮时回退为完整 `text`。
 
 ## 同步
 

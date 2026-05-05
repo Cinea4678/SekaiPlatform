@@ -34,6 +34,7 @@ app.UseSekaiPlatformWebDefaults();
 app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapAuthProxyEndpoints();
+app.MapSearchProxyEndpoints();
 app.MapSyncProxyEndpoints();
 app.MapInternalServicesHealthEndpoints();
 

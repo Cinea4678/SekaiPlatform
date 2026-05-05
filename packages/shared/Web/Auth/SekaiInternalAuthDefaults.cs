@@ -84,4 +84,9 @@ public static class SekaiInternalAuthDefaults
     /// Scope for rebuilding Search Service index documents.
     /// </summary>
     public const string SearchIndexRebuildScope = "search.index.rebuild";
+
+    /// <summary>
+    /// Scope for querying language assets through Search Service.
+    /// </summary>
+    public const string SearchQueryScope = "search.query";
 }

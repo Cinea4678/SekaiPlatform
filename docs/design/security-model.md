@@ -81,6 +81,7 @@
 | `sync.jobs.write` | Asset Service | API Service 代理租户管理员触发同步。 |
 | `sync.jobs.read` | Asset Service | API Service 代理租户管理员查询同步任务。 |
 | `search.index.rebuild` | Search Service | Asset Service 或 Sync Worker 刷新搜索索引。 |
+| `search.query` | Search Service | API Service 代理当前租户用户查询共享原文和租户译文。 |
 
 新增内部 endpoint 时必须先定义 scope，再实现鉴权检查。
 
