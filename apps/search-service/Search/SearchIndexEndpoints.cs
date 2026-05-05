@@ -102,7 +102,9 @@ internal static class SearchIndexEndpoints
         var tokenScope = httpContext.User.FindFirstValue(SekaiInternalAuthDefaults.ScopeClaimType);
         if (tokenScope == SekaiInternalAuthDefaults.SearchIndexRebuildScope)
         {
-            return actor is SekaiInternalAuthDefaults.AssetServiceActor or SekaiInternalAuthDefaults.SyncWorkerActor
+            return actor is SekaiInternalAuthDefaults.ApiServiceActor
+                    or SekaiInternalAuthDefaults.AssetServiceActor
+                    or SekaiInternalAuthDefaults.SyncWorkerActor
                 ? null
                 : "无权访问。";
         }

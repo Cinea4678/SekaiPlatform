@@ -101,6 +101,8 @@ services:
       InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:-}
       MoeSekai__RequestTimeout: ${MOESEKAI_REQUEST_TIMEOUT:-00:03:00}
       MoeSekai__ScenarioDownloadConcurrency: ${MOESEKAI_SCENARIO_DOWNLOAD_CONCURRENCY:-8}
+      SearchIndexRefresh__RequestTimeout: ${SEARCH_INDEX_REFRESH_TIMEOUT:-00:02:00}
+      SearchIndexRefresh__StoryBatchSize: ${SEARCH_INDEX_REFRESH_STORY_BATCH_SIZE:-200}
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,6 +148,8 @@ services:
       InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:-}
       MoeSekai__RequestTimeout: ${MOESEKAI_REQUEST_TIMEOUT:-00:03:00}
       MoeSekai__ScenarioDownloadConcurrency: ${MOESEKAI_SCENARIO_DOWNLOAD_CONCURRENCY:-8}
+      SearchIndexRefresh__RequestTimeout: ${SEARCH_INDEX_REFRESH_TIMEOUT:-00:02:00}
+      SearchIndexRefresh__StoryBatchSize: ${SEARCH_INDEX_REFRESH_STORY_BATCH_SIZE:-200}
     depends_on:
       postgres:
         condition: service_healthy

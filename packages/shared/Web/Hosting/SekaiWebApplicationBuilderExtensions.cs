@@ -158,11 +158,15 @@ public static class SekaiWebApplicationBuilderExtensions
             throw new InvalidOperationException("Missing InternalServices:SearchService configuration.");
         }
 
+        var refreshOptions = SearchIndexRefreshOptions.FromConfiguration(
+            configuration.GetSection(SearchIndexRefreshOptions.SectionName));
+        services.AddSingleton(refreshOptions);
+
         return services
             .AddHttpClient<SearchIndexRefreshClient>(client =>
             {
                 client.BaseAddress = new Uri(baseAddress);
-                client.Timeout = TimeSpan.FromSeconds(10);
+                client.Timeout = refreshOptions.RequestTimeout;
             })
             .AddHttpMessageHandler<SekaiContextPropagationHandler>();
     }

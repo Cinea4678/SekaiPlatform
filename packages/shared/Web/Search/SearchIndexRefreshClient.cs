@@ -9,9 +9,11 @@ namespace SekaiPlatform.Shared.Web.Search;
 /// </summary>
 /// <param name="httpClient">HTTP client configured with the Search Service base address.</param>
 /// <param name="internalTokenIssuer">Issuer used to authorize internal search maintenance calls.</param>
+/// <param name="options">Refresh batching and timeout options.</param>
 public sealed class SearchIndexRefreshClient(
     HttpClient httpClient,
-    SekaiInternalTokenIssuer internalTokenIssuer)
+    SekaiInternalTokenIssuer internalTokenIssuer,
+    SearchIndexRefreshOptions options)
 {
     private const string RebuildPath = "/internal/search/index/rebuild";
     private const string StoryRefreshScope = "all";
@@ -34,8 +36,12 @@ public sealed class SearchIndexRefreshClient(
             return SearchIndexRefreshResult.Succeeded();
         }
 
-        return await SendRefreshAsync(
-            new StoryIndexRefreshRequest(StoryRefreshScope, distinctStoryIds),
+        return await SendRefreshBatchesAsync(
+            distinctStoryIds,
+            Math.Max(1, options.StoryBatchSize),
+            ids => new StoryIndexRefreshRequest(StoryRefreshScope, ids),
+            SekaiInternalAuthDefaults.SearchIndexRebuildScope,
+            tenantId: null,
             cancellationToken);
     }
 
@@ -57,8 +63,10 @@ public sealed class SearchIndexRefreshClient(
             return SearchIndexRefreshResult.Succeeded();
         }
 
-        return await SendRefreshAsync(
-            new TranslationIndexRefreshRequest(TranslationRefreshScope, tenantId, distinctVersionIds),
+        return await SendRefreshBatchesAsync(
+            distinctVersionIds,
+            Math.Max(1, options.TranslationVersionBatchSize),
+            ids => new TranslationIndexRefreshRequest(TranslationRefreshScope, tenantId, ids),
             SekaiInternalAuthDefaults.SearchTranslationRefreshScope,
             tenantId,
             cancellationToken);
@@ -67,15 +75,32 @@ public sealed class SearchIndexRefreshClient(
     /// <summary>
     /// Sends an authorized Search Service rebuild request.
     /// </summary>
-    private async Task<SearchIndexRefreshResult> SendRefreshAsync(
-        object body,
+    private async Task<SearchIndexRefreshResult> SendRefreshBatchesAsync(
+        long[] ids,
+        int batchSize,
+        Func<long[], object> createBody,
+        string scope,
+        long? tenantId,
         CancellationToken cancellationToken)
     {
-        return await SendRefreshAsync(body, SekaiInternalAuthDefaults.SearchIndexRebuildScope, tenantId: null, cancellationToken);
+        var batchIndex = 0;
+        foreach (var batch in ids.Chunk(batchSize))
+        {
+            batchIndex++;
+            var result = await SendRefreshAsync(createBody(batch), scope, tenantId, cancellationToken);
+            if (!result.Success)
+            {
+                return SearchIndexRefreshResult.Failed(
+                    result.StatusCode,
+                    $"搜索索引刷新第 {batchIndex} 批失败，批量大小 {batch.Length}。{result.Body}");
+            }
+        }
+
+        return SearchIndexRefreshResult.Succeeded();
     }
 
     /// <summary>
-    /// Sends an authorized Search Service rebuild request.
+    /// Sends one authorized Search Service rebuild request.
     /// </summary>
     private async Task<SearchIndexRefreshResult> SendRefreshAsync(
         object body,
