@@ -167,7 +167,23 @@ curl 'http://localhost:8080/api/search?keyword=こんにちは&page=1&page_size=
       "story_group_id": 201,
       "story_group_title": "テストイベント",
       "source_line_id": 401,
-      "translation_version_id": null
+      "translation_line_id": null,
+      "translation_version_id": null,
+      "source": {
+        "source_line_id": 401,
+        "text": "こんにちは",
+        "speaker": "ミク"
+      },
+      "translations": [
+        {
+          "translation_line_id": 601,
+          "translation_version_id": 501,
+          "version_no": 1,
+          "translation_version_title": "历史译文",
+          "text": "你好",
+          "speaker": "初音未来"
+        }
+      ]
     }
   ],
   "total": 1,

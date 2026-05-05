@@ -168,8 +168,28 @@ internal sealed class ElasticsearchSearchClient(HttpClient httpClient, IOptions<
             StoryGroupId = source.GetNullableInt64("story_group_id"),
             StoryGroupTitle = source.GetNullableString("story_group_title"),
             SourceLineId = source.GetProperty("source_line_id").GetInt64(),
+            TranslationLineId = ReadTranslationLineId(hit),
             TranslationVersionId = source.GetNullableInt64("translation_version_id")
         };
+    }
+
+    /// <summary>
+    /// Reads the translation line identifier from the stable Elasticsearch document id.
+    /// </summary>
+    private static long? ReadTranslationLineId(JsonElement hit)
+    {
+        if (!hit.TryGetProperty("_id", out var id)
+            || id.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var value = id.GetString();
+        return value is not null
+            && value.StartsWith("translation:", StringComparison.Ordinal)
+            && long.TryParse(value["translation:".Length..], out var translationLineId)
+                ? translationLineId
+                : null;
     }
 
     /// <summary>

@@ -309,7 +309,23 @@ GET /api/search?keyword=...&page=1&page_size=20
       "story_group_id": 201,
       "story_group_title": "テストイベント",
       "source_line_id": 401,
-      "translation_version_id": null
+      "translation_line_id": null,
+      "translation_version_id": null,
+      "source": {
+        "source_line_id": 401,
+        "text": "こんにちは",
+        "speaker": "ミク"
+      },
+      "translations": [
+        {
+          "translation_line_id": 601,
+          "translation_version_id": 501,
+          "version_no": 1,
+          "translation_version_title": "历史译文",
+          "text": "你好",
+          "speaker": "初音未来"
+        }
+      ]
     }
   ],
   "total": 1,
@@ -324,6 +340,7 @@ GET /api/search?keyword=...&page=1&page_size=20
 - 译文只搜索当前租户内的数据。
 - 当前一期只对原文/译文正文进行关键词匹配；剧情、剧情集和说话人作为结果上下文返回。
 - 搜索结果按行返回。
+- 每条结果返回同一原文行的 `source` 和当前租户内的 `translations`。命中原文时可直接展示译文行 ID 与译文内容；命中译文时可直接展示原文内容。
 - `page` 和 `page_size` 对应的结果窗口不得超过 10000，超出时返回参数错误。
 - `highlight_text` 优先使用搜索引擎命中高亮；没有高亮时回退为完整 `text`。
 

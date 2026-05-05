@@ -29,6 +29,72 @@ internal sealed record SearchQueryResponse(
     [property: JsonPropertyName("page_size")] int PageSize);
 
 /// <summary>
+/// Shared source line context paired with a search hit.
+/// </summary>
+internal sealed record SearchSourceLineReference
+{
+    /// <summary>
+    /// Gets the shared source line identifier.
+    /// </summary>
+    [JsonPropertyName("source_line_id")]
+    public required long SourceLineId { get; init; }
+
+    /// <summary>
+    /// Gets the source line text.
+    /// </summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; init; }
+
+    /// <summary>
+    /// Gets the optional source speaker name.
+    /// </summary>
+    [JsonPropertyName("speaker")]
+    public string? Speaker { get; init; }
+}
+
+/// <summary>
+/// Tenant translation line context paired with a search hit.
+/// </summary>
+internal sealed record SearchTranslationLineReference
+{
+    /// <summary>
+    /// Gets the tenant translation line identifier.
+    /// </summary>
+    [JsonPropertyName("translation_line_id")]
+    public required long TranslationLineId { get; init; }
+
+    /// <summary>
+    /// Gets the owning translation version identifier.
+    /// </summary>
+    [JsonPropertyName("translation_version_id")]
+    public required long TranslationVersionId { get; init; }
+
+    /// <summary>
+    /// Gets the tenant-local version number for the story.
+    /// </summary>
+    [JsonPropertyName("version_no")]
+    public required int VersionNo { get; init; }
+
+    /// <summary>
+    /// Gets the optional translation version title.
+    /// </summary>
+    [JsonPropertyName("translation_version_title")]
+    public string? TranslationVersionTitle { get; init; }
+
+    /// <summary>
+    /// Gets the translated line text.
+    /// </summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; init; }
+
+    /// <summary>
+    /// Gets the optional translated speaker name.
+    /// </summary>
+    [JsonPropertyName("speaker")]
+    public string? Speaker { get; init; }
+}
+
+/// <summary>
 /// Line-level hit returned for shared source lines and tenant translation lines.
 /// </summary>
 internal sealed record SearchQueryHit
@@ -100,8 +166,26 @@ internal sealed record SearchQueryHit
     public required long SourceLineId { get; init; }
 
     /// <summary>
+    /// Gets the translation line identifier when the hit comes from translated text.
+    /// </summary>
+    [JsonPropertyName("translation_line_id")]
+    public long? TranslationLineId { get; init; }
+
+    /// <summary>
     /// Gets the translation version identifier when the hit comes from translated text.
     /// </summary>
     [JsonPropertyName("translation_version_id")]
     public long? TranslationVersionId { get; init; }
+
+    /// <summary>
+    /// Gets the source line paired with this result, including translation hits.
+    /// </summary>
+    [JsonPropertyName("source")]
+    public SearchSourceLineReference? Source { get; init; }
+
+    /// <summary>
+    /// Gets current-tenant translation lines paired with this result's source line.
+    /// </summary>
+    [JsonPropertyName("translations")]
+    public IReadOnlyList<SearchTranslationLineReference> Translations { get; init; } = [];
 }

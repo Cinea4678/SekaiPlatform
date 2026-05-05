@@ -64,7 +64,12 @@ internal static class SearchQueryEndpoints
             var response = await searchClient.SearchAsync(
                 new SearchQueryRequest(requestContext.TenantId.Value, keyword, page, pageSize),
                 cancellationToken);
-            return Results.Json(response);
+            var enrichedResponse = await EnrichSearchResponseAsync(
+                dbContext,
+                response,
+                requestContext.TenantId.Value,
+                cancellationToken);
+            return Results.Json(enrichedResponse);
         }).RequireInternalAuthorization(
             SekaiInternalAuthDefaults.SearchQueryScope,
             [SekaiInternalAuthDefaults.ApiServiceActor],
@@ -72,6 +77,79 @@ internal static class SearchQueryEndpoints
             requireTenant: true);
 
         return app;
+    }
+
+    /// <summary>
+    /// Adds source and current-tenant translation context for each line-level search hit.
+    /// </summary>
+    private static async Task<SearchQueryResponse> EnrichSearchResponseAsync(
+        SekaiPlatformDbContext dbContext,
+        SearchQueryResponse response,
+        long tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (response.Items.Count == 0)
+        {
+            return response;
+        }
+
+        var sourceLineIds = response.Items
+            .Select(item => item.SourceLineId)
+            .Distinct()
+            .ToArray();
+
+        var sources = await dbContext.StorySourceLines
+            .AsNoTracking()
+            .Where(line => sourceLineIds.Contains(line.Id))
+            .Select(line => new SearchSourceLineReference
+            {
+                SourceLineId = line.Id,
+                Text = line.Text,
+                Speaker = line.Speaker
+            })
+            .ToDictionaryAsync(line => line.SourceLineId, cancellationToken);
+
+        var translations = await (
+                from line in dbContext.TranslationLines.AsNoTracking()
+                join version in dbContext.TranslationVersions.AsNoTracking() on
+                    new { line.VersionId, line.StoryId } equals new { VersionId = version.Id, version.StoryId }
+                where sourceLineIds.Contains(line.SourceLineId)
+                    && version.TenantId == tenantId
+                    && version.DeletedAt == null
+                orderby line.SourceLineId, version.VersionNo, version.Id, line.Id
+                select new
+                {
+                    line.SourceLineId,
+                    Translation = new SearchTranslationLineReference
+                    {
+                        TranslationLineId = line.Id,
+                        TranslationVersionId = version.Id,
+                        VersionNo = version.VersionNo,
+                        TranslationVersionTitle = version.Title,
+                        Text = line.Text,
+                        Speaker = line.Speaker
+                    }
+                })
+            .ToArrayAsync(cancellationToken);
+
+        var translationsBySourceLine = translations
+            .GroupBy(item => item.SourceLineId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<SearchTranslationLineReference>)group
+                    .Select(item => item.Translation)
+                    .ToArray());
+
+        var items = response.Items
+            .Select(item => item with
+            {
+                Source = sources.GetValueOrDefault(item.SourceLineId),
+                Translations = translationsBySourceLine.GetValueOrDefault(item.SourceLineId)
+                    ?? []
+            })
+            .ToArray();
+
+        return response with { Items = items };
     }
 
     /// <summary>

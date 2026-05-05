@@ -85,6 +85,51 @@ public sealed class SearchApiTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies search results include paired source text and current-tenant translation lines.
+    /// </summary>
+    [Fact]
+    public async Task InternalSearch_ReturnsPairedSourceAndTenantTranslations()
+    {
+        var activeContext = await GetActiveTenantContextAsync();
+        var seed = await SeedSearchPairAsync(activeContext);
+        elasticsearch.SearchResponseJson = CreateSearchPairResponse(seed, activeContext.TenantId);
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/internal/search?keyword=%E5%8E%9F%E6%96%87&page=1&page_size=20");
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            IntegrationTestInternalAuth.Issue(
+                SekaiInternalAuthDefaults.ApiServiceActor,
+                SekaiInternalAuthDefaults.SearchServiceActor,
+                SekaiInternalAuthDefaults.SearchQueryScope,
+                activeContext.UserId,
+                activeContext.TenantId));
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await ReadJsonAsync(response);
+        var sourceHit = json.RootElement.GetProperty("items")[0];
+        Assert.Equal("source", sourceHit.GetProperty("asset_type").GetString());
+        Assert.Equal(seed.SourceLineId, sourceHit.GetProperty("source").GetProperty("source_line_id").GetInt64());
+        Assert.Equal("原文配对测试", sourceHit.GetProperty("source").GetProperty("text").GetString());
+        var sourceTranslations = sourceHit.GetProperty("translations").EnumerateArray().ToArray();
+        Assert.Equal(2, sourceTranslations.Length);
+        Assert.Contains(sourceTranslations, item =>
+            item.GetProperty("translation_line_id").GetInt64() == seed.FirstTranslationLineId
+            && item.GetProperty("text").GetString() == "译文配对测试一");
+        Assert.DoesNotContain(sourceTranslations, item => item.GetProperty("text").GetString() == "其他租户译文");
+
+        var translationHit = json.RootElement.GetProperty("items")[1];
+        Assert.Equal("translation", translationHit.GetProperty("asset_type").GetString());
+        Assert.Equal(seed.FirstTranslationLineId, translationHit.GetProperty("translation_line_id").GetInt64());
+        Assert.Equal("原文配对测试", translationHit.GetProperty("source").GetProperty("text").GetString());
+        Assert.Equal(2, translationHit.GetProperty("translations").GetArrayLength());
+    }
+
+    /// <summary>
     /// Ensures Search Service requires a delegated tenant claim for query endpoints.
     /// </summary>
     [Fact]
@@ -415,6 +460,179 @@ public sealed class SearchApiTests : IDisposable
     }
 
     /// <summary>
+    /// Seeds one source line with two current-tenant translations and one isolated other-tenant translation.
+    /// </summary>
+    private async Task<SearchPairSeed> SeedSearchPairAsync(ActiveTenantContext activeContext)
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var unique = Guid.NewGuid().ToString("N");
+        var otherTenantCreator = await dbContext.UserTenants
+            .Where(membership =>
+                membership.Tenant!.Name == IntegrationTestDatabaseFixture.SecondTenantName
+                && membership.Status == UserTenantStatuses.Active)
+            .Select(membership => new { membership.TenantId, membership.UserId })
+            .FirstAsync();
+
+        var group = new StoryGroup
+        {
+            StoryType = "event_story",
+            ExternalType = "search_test",
+            ExternalId = unique,
+            Title = "搜索配对测试剧情集",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var story = new Story
+        {
+            Group = group,
+            StoryType = "event_story",
+            ScenarioId = $"search_pair_{unique}",
+            Title = "搜索配对测试剧情",
+            SortOrder = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var sourceLine = new StorySourceLine
+        {
+            Story = story,
+            LineNo = 1,
+            LineType = "dialogue",
+            Speaker = "ミク",
+            Text = "原文配对测试",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var firstVersion = CreateTranslationVersion(activeContext.TenantId, story, activeContext.UserId, 1, "当前租户译文一", now);
+        var secondVersion = CreateTranslationVersion(activeContext.TenantId, story, activeContext.UserId, 2, "当前租户译文二", now);
+        var otherVersion = CreateTranslationVersion(
+            otherTenantCreator.TenantId,
+            story,
+            otherTenantCreator.UserId,
+            1,
+            "其他租户译文",
+            now);
+        dbContext.StoryGroups.Add(group);
+        dbContext.Stories.Add(story);
+        dbContext.StorySourceLines.Add(sourceLine);
+        dbContext.TranslationVersions.AddRange(firstVersion, secondVersion, otherVersion);
+        await dbContext.SaveChangesAsync();
+
+        var firstLine = CreateTranslationLine(firstVersion.Id, story.Id, sourceLine.Id, "初音未来", "译文配对测试一", now);
+        var secondLine = CreateTranslationLine(secondVersion.Id, story.Id, sourceLine.Id, "初音未来", "译文配对测试二", now);
+        dbContext.TranslationLines.AddRange(
+            firstLine,
+            secondLine,
+            CreateTranslationLine(otherVersion.Id, story.Id, sourceLine.Id, "其他", "其他租户译文", now));
+        await dbContext.SaveChangesAsync();
+
+        return new SearchPairSeed(
+            story.Id,
+            group.Id,
+            sourceLine.Id,
+            firstVersion.Id,
+            firstLine.Id);
+    }
+
+    /// <summary>
+    /// Creates a translation version for search pairing tests.
+    /// </summary>
+    private static TranslationVersion CreateTranslationVersion(
+        long tenantId,
+        Story story,
+        long createdBy,
+        int versionNo,
+        string title,
+        DateTimeOffset now)
+    {
+        return new TranslationVersion
+        {
+            TenantId = tenantId,
+            Story = story,
+            VersionNo = versionNo,
+            Title = title,
+            CreatedBy = createdBy,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
+
+    /// <summary>
+    /// Creates a translated line mapped to a source line for search pairing tests.
+    /// </summary>
+    private static TranslationLine CreateTranslationLine(
+        long versionId,
+        long storyId,
+        long sourceLineId,
+        string speaker,
+        string text,
+        DateTimeOffset now)
+    {
+        return new TranslationLine
+        {
+            VersionId = versionId,
+            StoryId = storyId,
+            SourceLineId = sourceLineId,
+            LineNo = 1,
+            Speaker = speaker,
+            Text = text,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
+
+    /// <summary>
+    /// Builds fake Elasticsearch hits whose identifiers match the seeded database rows.
+    /// </summary>
+    private static string CreateSearchPairResponse(SearchPairSeed seed, long tenantId)
+    {
+        return $$"""
+        {
+          "hits": {
+            "total": { "value": 2, "relation": "eq" },
+            "hits": [
+              {
+                "_id": "source:{{seed.SourceLineId}}",
+                "_source": {
+                  "asset_type": "source",
+                  "tenant_id": null,
+                  "story_id": {{seed.StoryId}},
+                  "story_type": "event_story",
+                  "story_title": "搜索配对测试剧情",
+                  "story_group_id": {{seed.StoryGroupId}},
+                  "story_group_title": "搜索配对测试剧情集",
+                  "translation_version_id": null,
+                  "source_line_id": {{seed.SourceLineId}},
+                  "line_no": 1,
+                  "speaker": "ミク",
+                  "text": "原文配对测试"
+                },
+                "highlight": { "text": ["<mark>原文</mark>配对测试"] }
+              },
+              {
+                "_id": "translation:{{seed.FirstTranslationLineId}}",
+                "_source": {
+                  "asset_type": "translation",
+                  "tenant_id": {{tenantId}},
+                  "story_id": {{seed.StoryId}},
+                  "story_type": "event_story",
+                  "story_title": "搜索配对测试剧情",
+                  "story_group_id": {{seed.StoryGroupId}},
+                  "story_group_title": "搜索配对测试剧情集",
+                  "translation_version_id": {{seed.FirstTranslationVersionId}},
+                  "source_line_id": {{seed.SourceLineId}},
+                  "line_no": 1,
+                  "speaker": "初音未来",
+                  "text": "译文配对测试一"
+                }
+              }
+            ]
+          }
+        }
+        """;
+    }
+
+    /// <summary>
     /// Captures login credentials and payload needed by follow-up authenticated assertions.
     /// </summary>
     private sealed record LoginResult(string Token, JsonDocument Json);
@@ -423,6 +641,16 @@ public sealed class SearchApiTests : IDisposable
     /// Captures an active user and tenant pair from the integration seed data.
     /// </summary>
     private sealed record ActiveTenantContext(long UserId, long TenantId);
+
+    /// <summary>
+    /// Captures seeded identifiers used by fake Elasticsearch search hits.
+    /// </summary>
+    private sealed record SearchPairSeed(
+        long StoryId,
+        long StoryGroupId,
+        long SourceLineId,
+        long FirstTranslationVersionId,
+        long FirstTranslationLineId);
 
     /// <summary>
     /// Hosts the Auth service with test configuration and the shared database.
@@ -535,6 +763,11 @@ public sealed class SearchApiTests : IDisposable
         public List<string> SearchBodies { get; } = [];
 
         /// <summary>
+        /// Gets or sets the fake Elasticsearch search response body.
+        /// </summary>
+        public string SearchResponseJson { get; set; } = DefaultSearchResponseJson;
+
+        /// <summary>
         /// Records search requests and returns successful search hits.
         /// </summary>
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -552,12 +785,13 @@ public sealed class SearchApiTests : IDisposable
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
 
-        private const string SearchResponseJson = """
+        private const string DefaultSearchResponseJson = """
         {
           "hits": {
             "total": { "value": 2, "relation": "eq" },
             "hits": [
               {
+                "_id": "source:401",
                 "_source": {
                   "asset_type": "source",
                   "tenant_id": null,
@@ -575,6 +809,7 @@ public sealed class SearchApiTests : IDisposable
                 "highlight": { "text": ["<mark>こんにちは</mark>"] }
               },
               {
+                "_id": "translation:601",
                 "_source": {
                   "asset_type": "translation",
                   "tenant_id": 202,
