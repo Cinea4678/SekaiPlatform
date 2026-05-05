@@ -45,7 +45,7 @@ internal sealed class SearchIndexRebuildRequest
 }
 
 /// <summary>
-/// Response body returned after a search index rebuild request completes.
+/// Response body logged after a search index rebuild request completes.
 /// </summary>
 /// <param name="Scope">The normalized rebuild scope.</param>
 /// <param name="Deleted">Whether existing matching index documents were deleted before indexing.</param>
@@ -56,3 +56,14 @@ internal sealed record SearchIndexRebuildResponse(
     [property: JsonPropertyName("deleted")] bool Deleted,
     [property: JsonPropertyName("source_indexed")] int SourceIndexed,
     [property: JsonPropertyName("translation_indexed")] int TranslationIndexed);
+
+/// <summary>
+/// Response body returned after a search index rebuild request is accepted for background execution.
+/// </summary>
+/// <param name="JobId">Identifier used to correlate background rebuild logs.</param>
+/// <param name="Scope">The normalized rebuild scope.</param>
+/// <param name="Status">Accepted rebuild status.</param>
+internal sealed record SearchIndexRebuildAcceptedResponse(
+    [property: JsonPropertyName("job_id")] Guid JobId,
+    [property: JsonPropertyName("scope")] string Scope,
+    [property: JsonPropertyName("status")] string Status);

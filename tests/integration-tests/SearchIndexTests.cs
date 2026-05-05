@@ -41,7 +41,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             story_ids = new[] { seed.StoryId }
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.IndexedDocuments.Count == 1);
         var document = Assert.Single(elasticsearch.IndexedDocuments);
         Assert.Equal("source", document.GetProperty("asset_type").GetString());
         Assert.Equal(JsonValueKind.Null, document.GetProperty("tenant_id").ValueKind);
@@ -70,7 +71,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             translation_version_id = seed.TranslationVersionId
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.IndexedDocuments.Count == 1);
         var document = Assert.Single(elasticsearch.IndexedDocuments);
         Assert.Equal("translation", document.GetProperty("asset_type").GetString());
         Assert.Equal(seed.TenantId, document.GetProperty("tenant_id").GetInt64());
@@ -99,7 +101,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             translation_version_ids = new[] { seed.TranslationVersionId }
         }, seed.TenantId);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.IndexedDocuments.Count == 1);
         var document = Assert.Single(elasticsearch.IndexedDocuments);
         Assert.Equal(seed.TranslationVersionId, document.GetProperty("translation_version_id").GetInt64());
         Assert.Contains(seed.TranslationVersionId.ToString(), Assert.Single(elasticsearch.DeleteByQueryBodies), StringComparison.Ordinal);
@@ -146,7 +149,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             story_ids = new[] { seed.StoryId }
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.DeleteByQueryBodies.Count == 1);
         var deleteBody = Assert.Single(elasticsearch.DeleteByQueryBodies);
         Assert.Contains("\"asset_type\":\"source\"", deleteBody, StringComparison.Ordinal);
         Assert.Contains(seed.StoryId.ToString(), deleteBody, StringComparison.Ordinal);
@@ -170,7 +174,9 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
             story_ids = new[] { seed.StoryId }
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () =>
+            elasticsearch.IndexedDocuments.Count == 2 && elasticsearch.DeleteByQueryBodies.Count == 1);
         Assert.Equal(2, elasticsearch.IndexedDocuments.Count);
         var deleteBody = Assert.Single(elasticsearch.DeleteByQueryBodies);
         Assert.DoesNotContain("\"asset_type\"", deleteBody, StringComparison.Ordinal);
@@ -306,7 +312,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
 
         using var response = await PostRebuildAsync(client, new { scope = "source" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.CreateIndexBodies.Count == 1);
         var createBody = Assert.Single(elasticsearch.CreateIndexBodies);
         Assert.Contains("kuromoji_tokenizer", createBody, StringComparison.Ordinal);
         Assert.Contains("smartcn", createBody, StringComparison.Ordinal);
@@ -391,6 +398,27 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
     }
 
     /// <summary>
+    /// Waits for the asynchronous rebuild worker to reach an observable Elasticsearch state.
+    /// </summary>
+    private static async Task WaitForElasticsearchAsync(
+        FakeElasticsearchHandler elasticsearch,
+        Func<bool> condition)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        Assert.Fail("Timed out waiting for asynchronous search index rebuild.");
+    }
+
+    /// <summary>
     /// Hosts Search Service with fake Elasticsearch and the shared integration database.
     /// </summary>
     private sealed class SearchServiceFactory(
@@ -431,6 +459,8 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
     /// </summary>
     private sealed class FakeElasticsearchHandler : HttpMessageHandler
     {
+        private readonly object gate = new();
+
         /// <summary>
         /// Gets delete-by-query request bodies.
         /// </summary>
@@ -476,25 +506,39 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
 
             if (request.Method == HttpMethod.Put)
             {
-                CreateIndexBodies.Add(request.Content is null
+                var body = request.Content is null
                     ? ""
-                    : await request.Content.ReadAsStringAsync(cancellationToken));
-                IndexExists = true;
+                    : await request.Content.ReadAsStringAsync(cancellationToken);
+                lock (gate)
+                {
+                    CreateIndexBodies.Add(body);
+                    IndexExists = true;
+                }
+
                 return JsonResponse("""{"acknowledged":true}""");
             }
 
             if (request.Method == HttpMethod.Delete)
             {
-                DeleteIndexPaths.Add(path);
-                IndexExists = false;
+                lock (gate)
+                {
+                    DeleteIndexPaths.Add(path);
+                    IndexExists = false;
+                }
+
                 return JsonResponse("""{"acknowledged":true}""");
             }
 
             if (path.EndsWith("/_delete_by_query", StringComparison.Ordinal))
             {
-                DeleteByQueryBodies.Add(request.Content is null
+                var body = request.Content is null
                     ? ""
-                    : await request.Content.ReadAsStringAsync(cancellationToken));
+                    : await request.Content.ReadAsStringAsync(cancellationToken);
+                lock (gate)
+                {
+                    DeleteByQueryBodies.Add(body);
+                }
+
                 return JsonResponse("""{"deleted":0}""");
             }
 
@@ -503,7 +547,11 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
                 var body = request.Content is null
                     ? ""
                     : await request.Content.ReadAsStringAsync(cancellationToken);
-                CaptureBulkRequest(body);
+                lock (gate)
+                {
+                    CaptureBulkRequest(body);
+                }
+
                 return JsonResponse("""{"errors":false,"items":[]}""");
             }
 

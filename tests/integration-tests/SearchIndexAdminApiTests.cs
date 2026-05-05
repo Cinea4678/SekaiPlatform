@@ -53,9 +53,11 @@ public sealed class SearchIndexAdminApiTests : IDisposable
             login.Token,
             new { scope = "source" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var responseJson = await ReadJsonAsync(response);
         Assert.Equal("source", responseJson.RootElement.GetProperty("scope").GetString());
+        Assert.Equal("queued", responseJson.RootElement.GetProperty("status").GetString());
+        Assert.NotEqual(Guid.Empty, responseJson.RootElement.GetProperty("job_id").GetGuid());
 
         var body = Assert.Single(searchServiceHandler.RequestBodies);
         using var bodyJson = JsonDocument.Parse(body);
@@ -193,10 +195,10 @@ public sealed class SearchIndexAdminApiTests : IDisposable
                 RequestBodies.Add(request.Content is null
                     ? ""
                     : await request.Content.ReadAsStringAsync(cancellationToken));
-                return new HttpResponseMessage(HttpStatusCode.OK)
+                return new HttpResponseMessage(HttpStatusCode.Accepted)
                 {
                     Content = new StringContent(
-                        """{"scope":"source","deleted":true,"source_indexed":3,"translation_indexed":0}""",
+                        """{"job_id":"8e10b6e9-127c-4fed-9789-8943655d3b18","scope":"source","status":"queued"}""",
                         Encoding.UTF8,
                         "application/json")
                 };

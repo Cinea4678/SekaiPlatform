@@ -17,11 +17,12 @@ Phase 5：搜索索引已完成。
   - `POST /internal/search/index/rebuild`
   - 支持 `scope: all | source | translation`
   - 支持按 `story_ids`、`tenant_id`、`translation_version_id` 局部重建
+  - 校验通过后返回 `202 Accepted` 并由后台队列异步执行
 - 原文同步成功后，Asset Service 手动同步和 Sync Worker 定时同步都会请求 Search Service 对成功同步的 story 做 all-scope 局部重建，以同步刷新原文和已有译文文档中的剧情元信息。
 
 ## 安全说明
 
-- 索引重建接口仅作为内部服务间维护接口使用，不在 API Service 暴露给前端；调用方必须携带内部 token，并具备 `search.index.rebuild` scope。
+- Search Service 索引重建接口仅作为内部服务间维护接口使用；调用方必须携带内部 token，并具备 `search.index.rebuild` scope。
 - Docker Compose 中 Elasticsearch 默认只绑定宿主机 `127.0.0.1:9200`，避免本地开发环境把无认证 ES 直接暴露到局域网。
 - 原文索引刷新失败不会回滚 PostgreSQL 同步结果，服务会记录错误日志，后续可通过重建接口修复。
 - 译文索引能力已可从数据库重建；Phase 7 导入接口完成后复用 translation 局部重建能力。

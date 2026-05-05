@@ -37,6 +37,7 @@ http://localhost:8080
 | Assets | GET | `/api/translation-versions/{translationVersionId}` | 查询翻译版本详情 |
 | Assets | GET | `/api/translation-versions/{translationVersionId}/lines` | 查询翻译行 |
 | Search | GET | `/api/search` | 搜索原文和当前租户译文 |
+| Search | POST | `/api/search/index/rebuild` | 异步触发搜索索引重建 |
 | Sync | POST | `/api/sync/jobs` | 手动触发外部数据源同步 |
 | Sync | GET | `/api/sync/jobs` | 查询同步任务列表 |
 | Sync | GET | `/api/sync/jobs/{syncJobId}` | 查询同步任务详情 |
@@ -349,6 +350,18 @@ GET /api/search?keyword=...&page=1&page_size=20
 - 每条结果返回同一原文行的 `source` 和当前租户内的 `translations`。命中原文时可直接展示译文行 ID、译文内容和译文版本 `metadata.staff`；命中译文时可直接展示原文内容。
 - `page` 和 `page_size` 对应的结果窗口不得超过 10000，超出时返回参数错误。
 - `highlight_text` 优先使用搜索引擎命中高亮；没有高亮时回退为完整 `text`。
+
+### 重建搜索索引
+
+超级管理员异步触发搜索索引重建。
+
+处理规则：
+
+- API Service 校验当前用户是当前租户 `super_admin`。
+- Search Service 校验请求后写入后台队列。
+- 接口返回 `202 Accepted`，响应包含 `job_id`、`scope` 和 `status`。
+- 后台任务串行执行索引重建。
+- 后台执行结果写入服务日志。
 
 ## 同步
 

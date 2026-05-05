@@ -16,12 +16,11 @@ internal static class SearchIndexEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapSearchIndexEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/internal/search/index/rebuild", async Task<IResult> (
+        app.MapPost("/internal/search/index/rebuild", IResult (
             SearchIndexRebuildRequest? request,
-            SearchIndexRebuilder rebuilder,
+            SearchIndexRebuildQueue queue,
             ICurrentRequestContextAccessor contextAccessor,
-            HttpContext httpContext,
-            CancellationToken cancellationToken) =>
+            HttpContext httpContext) =>
         {
             request ??= new SearchIndexRebuildRequest();
             var scope = SearchIndexRebuilder.NormalizeScope(request.Scope);
@@ -44,8 +43,21 @@ internal static class SearchIndexEndpoints
                 return Error(contextAccessor, StatusCodes.Status400BadRequest, validationError);
             }
 
-            var response = await rebuilder.RebuildAsync(request, cancellationToken);
-            return Results.Json(response);
+            var requestContext = contextAccessor.GetCurrent();
+            var jobId = Guid.NewGuid();
+            var accepted = queue.TryEnqueue(new SearchIndexRebuildWorkItem(
+                jobId,
+                scope,
+                requestContext.TraceId,
+                CloneRequest(request, scope)));
+            if (!accepted)
+            {
+                return Error(contextAccessor, StatusCodes.Status503ServiceUnavailable, "搜索索引重建队列已满。");
+            }
+
+            return Results.Json(
+                new SearchIndexRebuildAcceptedResponse(jobId, scope, "queued"),
+                statusCode: StatusCodes.Status202Accepted);
         }).RequireAuthorization(policy =>
         {
             policy.AuthenticationSchemes.Add(JwtBearerDefaults.AuthenticationScheme);
@@ -53,6 +65,22 @@ internal static class SearchIndexEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Copies the validated request before it leaves the HTTP request lifecycle.
+    /// </summary>
+    private static SearchIndexRebuildRequest CloneRequest(SearchIndexRebuildRequest request, string scope)
+    {
+        return new SearchIndexRebuildRequest
+        {
+            Scope = scope,
+            ForceRecreate = request.ForceRecreate,
+            StoryIds = request.StoryIds?.ToArray(),
+            TenantId = request.TenantId,
+            TranslationVersionId = request.TranslationVersionId,
+            TranslationVersionIds = request.TranslationVersionIds?.ToArray()
+        };
     }
 
     /// <summary>

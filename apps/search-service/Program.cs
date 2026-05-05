@@ -23,6 +23,8 @@ builder.Services.AddHttpClient<ElasticsearchSearchClient>((services, client) =>
     client.BaseAddress = new Uri(options.Url);
 });
 builder.Services.AddScoped<SearchIndexRebuilder>();
+builder.Services.AddSingleton<SearchIndexRebuildQueue>();
+builder.Services.AddHostedService<SearchIndexRebuildWorker>();
 builder.Services.AddHealthChecks()
     .AddCheck<ElasticsearchHealthCheck>("elasticsearch")
     .AddCheck<PostgresHealthCheck>("postgres");
