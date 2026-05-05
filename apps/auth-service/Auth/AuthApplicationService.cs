@@ -15,7 +15,7 @@ internal sealed class AuthApplicationService(
     ICurrentRequestContextAccessor contextAccessor)
 {
     /// <summary>
-    /// Authenticates a QQ ID and password, then returns an access token and available tenants.
+    /// Authenticates a QQ ID and password, upgrades any legacy plaintext password to a hash, then returns an access token and available tenants.
     /// </summary>
     public async Task<IResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
@@ -33,11 +33,7 @@ internal sealed class AuthApplicationService(
             return InvalidCredentials();
         }
 
-        var verification = new PasswordHasher<User>().VerifyHashedPassword(
-            user,
-            user.PasswordHash,
-            request.Password);
-        if (verification == PasswordVerificationResult.Failed)
+        if (!await TryVerifyPasswordAsync(user, request.Password, cancellationToken))
         {
             return InvalidCredentials();
         }
@@ -264,6 +260,57 @@ internal sealed class AuthApplicationService(
     private IResult BadRequest()
     {
         return Error(StatusCodes.Status400BadRequest, "邀请请求无效。");
+    }
+
+    /// <summary>
+    /// Verifies the submitted password and migrates legacy plaintext storage to an Identity password hash.
+    /// </summary>
+    private async Task<bool> TryVerifyPasswordAsync(User user, string password, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            return false;
+        }
+
+        var hasher = new PasswordHasher<User>();
+        var verification = VerifyHashedPassword(hasher, user, user.PasswordHash, password);
+        if (verification is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            if (verification == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                user.PasswordHash = hasher.HashPassword(user, password);
+                user.UpdatedAt = DateTimeOffset.UtcNow;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            return true;
+        }
+
+        if (!string.Equals(user.PasswordHash, password, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        user.PasswordHash = hasher.HashPassword(user, password);
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private static PasswordVerificationResult VerifyHashedPassword(
+        PasswordHasher<User> hasher,
+        User user,
+        string storedPassword,
+        string password)
+    {
+        try
+        {
+            return hasher.VerifyHashedPassword(user, storedPassword, password);
+        }
+        catch (FormatException)
+        {
+            return PasswordVerificationResult.Failed;
+        }
     }
 
     /// <summary>

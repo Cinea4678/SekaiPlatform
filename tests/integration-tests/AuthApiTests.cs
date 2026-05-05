@@ -93,6 +93,57 @@ public sealed class AuthApiTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies a legacy plaintext password is accepted once and immediately upgraded to a hash.
+    /// </summary>
+    [Fact]
+    public async Task Login_WithPlaintextPassword_UpgradesPasswordHash()
+    {
+        var qqId = CreateUniqueQqId();
+        const string plaintextPassword = "plain-login-password";
+        await using (var dbContext = fixture.CreateDbContext())
+        {
+            var tenant = await dbContext.Tenants.SingleAsync(item => item.Name == IntegrationTestDatabaseFixture.TenantName);
+            var now = DateTimeOffset.UtcNow;
+            var user = new User
+            {
+                QqId = qqId,
+                DisplayName = "明文密码迁移用户",
+                PasswordHash = plaintextPassword,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            dbContext.Users.Add(user);
+            await dbContext.SaveChangesAsync();
+
+            dbContext.UserTenants.Add(new UserTenant
+            {
+                TenantId = tenant.Id,
+                UserId = user.Id,
+                Role = UserTenantRoles.Normal,
+                Status = UserTenantStatuses.Active,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = apiFactory.CreateClient();
+        using var response = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            username = qqId,
+            password = plaintextPassword
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var verifyContext = fixture.CreateDbContext();
+        var migratedUser = await verifyContext.Users.SingleAsync(item => item.QqId == qqId);
+        Assert.NotEqual(plaintextPassword, migratedUser.PasswordHash);
+        Assert.NotEqual(
+            PasswordVerificationResult.Failed,
+            new PasswordHasher<User>().VerifyHashedPassword(migratedUser, migratedUser.PasswordHash!, plaintextPassword));
+    }
+
+    /// <summary>
     /// Verifies a multi-tenant user must choose a current tenant before tenant-scoped calls.
     /// </summary>
     [Fact]
