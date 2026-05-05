@@ -169,6 +169,7 @@ curl 'http://localhost:8080/api/search?keyword=こんにちは&page=1&page_size=
       "source_line_id": 401,
       "translation_line_id": null,
       "translation_version_id": null,
+      "staff": null,
       "source": {
         "source_line_id": 401,
         "text": "こんにちは",
@@ -180,6 +181,11 @@ curl 'http://localhost:8080/api/search?keyword=こんにちは&page=1&page_size=
           "translation_version_id": 501,
           "version_no": 1,
           "translation_version_title": "历史译文",
+          "staff": {
+            "translator": "翻译A",
+            "proofreader": "校对B",
+            "approver": "合意C"
+          },
           "text": "你好",
           "speaker": "初音未来"
         }

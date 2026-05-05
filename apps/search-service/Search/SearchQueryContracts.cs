@@ -53,6 +53,30 @@ internal sealed record SearchSourceLineReference
 }
 
 /// <summary>
+/// Version-level staff metadata paired with a tenant translation line.
+/// </summary>
+internal sealed record SearchTranslationStaffReference
+{
+    /// <summary>
+    /// Gets the translator display name recorded on the translation version.
+    /// </summary>
+    [JsonPropertyName("translator")]
+    public string? Translator { get; init; }
+
+    /// <summary>
+    /// Gets the proofreader display name recorded on the translation version.
+    /// </summary>
+    [JsonPropertyName("proofreader")]
+    public string? Proofreader { get; init; }
+
+    /// <summary>
+    /// Gets the approver display name recorded on the translation version.
+    /// </summary>
+    [JsonPropertyName("approver")]
+    public string? Approver { get; init; }
+}
+
+/// <summary>
 /// Tenant translation line context paired with a search hit.
 /// </summary>
 internal sealed record SearchTranslationLineReference
@@ -80,6 +104,12 @@ internal sealed record SearchTranslationLineReference
     /// </summary>
     [JsonPropertyName("translation_version_title")]
     public string? TranslationVersionTitle { get; init; }
+
+    /// <summary>
+    /// Gets version-level staff metadata for display and archival attribution.
+    /// </summary>
+    [JsonPropertyName("staff")]
+    public SearchTranslationStaffReference? Staff { get; init; }
 
     /// <summary>
     /// Gets the translated line text.
@@ -176,6 +206,12 @@ internal sealed record SearchQueryHit
     /// </summary>
     [JsonPropertyName("translation_version_id")]
     public long? TranslationVersionId { get; init; }
+
+    /// <summary>
+    /// Gets version-level staff metadata when this hit comes from translated text.
+    /// </summary>
+    [JsonPropertyName("staff")]
+    public SearchTranslationStaffReference? Staff { get; init; }
 
     /// <summary>
     /// Gets the source line paired with this result, including translation hits.

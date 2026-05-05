@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
 using SekaiPlatform.Shared.Web.Auth;
@@ -109,7 +110,7 @@ internal static class SearchQueryEndpoints
             })
             .ToDictionaryAsync(line => line.SourceLineId, cancellationToken);
 
-        var translations = await (
+        var translationRows = await (
                 from line in dbContext.TranslationLines.AsNoTracking()
                 join version in dbContext.TranslationVersions.AsNoTracking() on
                     new { line.VersionId, line.StoryId } equals new { VersionId = version.Id, version.StoryId }
@@ -120,29 +121,37 @@ internal static class SearchQueryEndpoints
                 select new
                 {
                     line.SourceLineId,
-                    Translation = new SearchTranslationLineReference
-                    {
-                        TranslationLineId = line.Id,
-                        TranslationVersionId = version.Id,
-                        VersionNo = version.VersionNo,
-                        TranslationVersionTitle = version.Title,
-                        Text = line.Text,
-                        Speaker = line.Speaker
-                    }
+                    TranslationLineId = line.Id,
+                    TranslationVersionId = version.Id,
+                    version.VersionNo,
+                    TranslationVersionTitle = version.Title,
+                    version.Metadata,
+                    line.Text,
+                    line.Speaker
                 })
             .ToArrayAsync(cancellationToken);
 
-        var translationsBySourceLine = translations
+        var translationsBySourceLine = translationRows
             .GroupBy(item => item.SourceLineId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<SearchTranslationLineReference>)group
-                    .Select(item => item.Translation)
+                    .Select(item => new SearchTranslationLineReference
+                    {
+                        TranslationLineId = item.TranslationLineId,
+                        TranslationVersionId = item.TranslationVersionId,
+                        VersionNo = item.VersionNo,
+                        TranslationVersionTitle = item.TranslationVersionTitle,
+                        Staff = ParseTranslationStaff(item.Metadata),
+                        Text = item.Text,
+                        Speaker = item.Speaker
+                    })
                     .ToArray());
 
         var items = response.Items
             .Select(item => item with
             {
+                Staff = FindTranslationStaff(translationsBySourceLine, item),
                 Source = sources.GetValueOrDefault(item.SourceLineId),
                 Translations = translationsBySourceLine.GetValueOrDefault(item.SourceLineId)
                     ?? []
@@ -150,6 +159,65 @@ internal static class SearchQueryEndpoints
             .ToArray();
 
         return response with { Items = items };
+    }
+
+    /// <summary>
+    /// Finds staff metadata for the translated line that produced the search hit.
+    /// </summary>
+    private static SearchTranslationStaffReference? FindTranslationStaff(
+        IReadOnlyDictionary<long, IReadOnlyList<SearchTranslationLineReference>> translationsBySourceLine,
+        SearchQueryHit item)
+    {
+        if (item.TranslationLineId is null
+            || !translationsBySourceLine.TryGetValue(item.SourceLineId, out var translations))
+        {
+            return null;
+        }
+
+        return translations
+            .FirstOrDefault(translation => translation.TranslationLineId == item.TranslationLineId.Value)
+            ?.Staff;
+    }
+
+    /// <summary>
+    /// Extracts the fixed staff attribution object from translation version metadata.
+    /// </summary>
+    private static SearchTranslationStaffReference? ParseTranslationStaff(string? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(metadata);
+        if (!document.RootElement.TryGetProperty("staff", out var staff)
+            || staff.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        if (staff.ValueKind is not JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return new SearchTranslationStaffReference
+        {
+            Translator = ReadOptionalStaffName(staff, "translator"),
+            Proofreader = ReadOptionalStaffName(staff, "proofreader"),
+            Approver = ReadOptionalStaffName(staff, "approver")
+        };
+    }
+
+    /// <summary>
+    /// Reads one optional staff display name from the metadata staff object.
+    /// </summary>
+    private static string? ReadOptionalStaffName(JsonElement staff, string propertyName)
+    {
+        return staff.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
     }
 
     /// <summary>

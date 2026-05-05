@@ -117,14 +117,19 @@ public sealed class SearchApiTests : IDisposable
         Assert.Equal("原文配对测试", sourceHit.GetProperty("source").GetProperty("text").GetString());
         var sourceTranslations = sourceHit.GetProperty("translations").EnumerateArray().ToArray();
         Assert.Equal(2, sourceTranslations.Length);
-        Assert.Contains(sourceTranslations, item =>
+        var firstTranslation = Assert.Single(sourceTranslations, item =>
             item.GetProperty("translation_line_id").GetInt64() == seed.FirstTranslationLineId
             && item.GetProperty("text").GetString() == "译文配对测试一");
+        var firstStaff = firstTranslation.GetProperty("staff");
+        Assert.Equal("翻译A", firstStaff.GetProperty("translator").GetString());
+        Assert.Equal("校对B", firstStaff.GetProperty("proofreader").GetString());
+        Assert.Equal("合意C", firstStaff.GetProperty("approver").GetString());
         Assert.DoesNotContain(sourceTranslations, item => item.GetProperty("text").GetString() == "其他租户译文");
 
         var translationHit = json.RootElement.GetProperty("items")[1];
         Assert.Equal("translation", translationHit.GetProperty("asset_type").GetString());
         Assert.Equal(seed.FirstTranslationLineId, translationHit.GetProperty("translation_line_id").GetInt64());
+        Assert.Equal("翻译A", translationHit.GetProperty("staff").GetProperty("translator").GetString());
         Assert.Equal("原文配对测试", translationHit.GetProperty("source").GetProperty("text").GetString());
         Assert.Equal(2, translationHit.GetProperty("translations").GetArrayLength());
     }
@@ -503,14 +508,29 @@ public sealed class SearchApiTests : IDisposable
             CreatedAt = now,
             UpdatedAt = now
         };
-        var firstVersion = CreateTranslationVersion(activeContext.TenantId, story, activeContext.UserId, 1, "当前租户译文一", now);
-        var secondVersion = CreateTranslationVersion(activeContext.TenantId, story, activeContext.UserId, 2, "当前租户译文二", now);
+        var firstVersion = CreateTranslationVersion(
+            activeContext.TenantId,
+            story,
+            activeContext.UserId,
+            1,
+            "当前租户译文一",
+            """{"staff":{"translator":"翻译A","proofreader":"校对B","approver":"合意C"},"source":"search-test"}""",
+            now);
+        var secondVersion = CreateTranslationVersion(
+            activeContext.TenantId,
+            story,
+            activeContext.UserId,
+            2,
+            "当前租户译文二",
+            """{"staff":{"translator":"翻译D","proofreader":null,"approver":null}}""",
+            now);
         var otherVersion = CreateTranslationVersion(
             otherTenantCreator.TenantId,
             story,
             otherTenantCreator.UserId,
             1,
             "其他租户译文",
+            """{"staff":{"translator":"其他租户翻译"}}""",
             now);
         dbContext.StoryGroups.Add(group);
         dbContext.Stories.Add(story);
@@ -543,6 +563,7 @@ public sealed class SearchApiTests : IDisposable
         long createdBy,
         int versionNo,
         string title,
+        string? metadata,
         DateTimeOffset now)
     {
         return new TranslationVersion
@@ -551,6 +572,7 @@ public sealed class SearchApiTests : IDisposable
             Story = story,
             VersionNo = versionNo,
             Title = title,
+            Metadata = metadata,
             CreatedBy = createdBy,
             CreatedAt = now,
             UpdatedAt = now
