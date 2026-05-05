@@ -1,42 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_FILE="${CONFIG_FILE:-/etc/sekai-platform/deploy-from-github.env}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/sekai-platform}"
 SERVER_ENV_FILE="${SERVER_ENV_FILE:-/etc/sekai-platform/server.env}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 PROJECT_NAME="${PROJECT_NAME:-sekai-platform}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-}"
+COMPOSE_PATH="${COMPOSE_PATH:-deploy/compose.server.yml}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 IMAGE_TAG="${IMAGE_TAG:-}"
-GHCR_USERNAME="${GHCR_USERNAME:-}"
-GHCR_TOKEN="${GHCR_TOKEN:-}"
-REGISTRY_LOGIN="${REGISTRY_LOGIN:-false}"
 DRY_RUN=0
 
 usage() {
   cat <<'USAGE'
 Usage:
-  deploy-from-github --image-prefix ghcr.io/owner/repo --image-tag <sha>
+  deploy-from-github --repository owner/repo --image-prefix ghcr.io/owner/repo --image-tag <sha>
 
 Options:
+  --repository VALUE     GitHub repository in owner/repo form. Defaults to owner/repo parsed from image prefix.
   --image-prefix VALUE   Container image prefix, for example ghcr.io/owner/repo.
   --image-tag VALUE      Container image tag to deploy.
+  --compose-path VALUE   Compose file path inside the repository. Default: deploy/compose.server.yml.
   --deploy-dir VALUE     Runtime directory. Default: /opt/sekai-platform.
   --env-file VALUE       Server env file. Default: /etc/sekai-platform/server.env.
-  --config VALUE         Optional config file. Default: /etc/sekai-platform/deploy-from-github.env.
   --registry VALUE       Container registry. Default: ghcr.io.
   --dry-run              Validate inputs and render files without pulling or restarting.
   -h, --help             Show this help.
-
-Config file variables:
-  REGISTRY_LOGIN         Set to true to run docker login before pulling images.
-  GHCR_USERNAME          GitHub user or machine account used for GHCR login.
-  GHCR_TOKEN             Token with permission to read private GHCR packages.
 USAGE
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --repository)
+      GITHUB_REPOSITORY="${2:-}"
+      shift 2
+      ;;
     --image-prefix)
       IMAGE_PREFIX="${2:-}"
       shift 2
@@ -45,16 +43,16 @@ while [[ $# -gt 0 ]]; do
       IMAGE_TAG="${2:-}"
       shift 2
       ;;
+    --compose-path)
+      COMPOSE_PATH="${2:-}"
+      shift 2
+      ;;
     --deploy-dir)
       DEPLOY_DIR="${2:-}"
       shift 2
       ;;
     --env-file)
       SERVER_ENV_FILE="${2:-}"
-      shift 2
-      ;;
-    --config)
-      CONFIG_FILE="${2:-}"
       shift 2
       ;;
     --registry)
@@ -77,11 +75,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -f "$CONFIG_FILE" ]]; then
-  # shellcheck disable=SC1090
-  source "$CONFIG_FILE"
-fi
-
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'Required command not found: %s\n' "$1" >&2
@@ -99,17 +92,20 @@ require_value() {
 }
 
 require_command docker
+require_command curl
 require_value IMAGE_PREFIX "$IMAGE_PREFIX"
 require_value IMAGE_TAG "$IMAGE_TAG"
+
+if [[ -z "$GITHUB_REPOSITORY" ]]; then
+  GITHUB_REPOSITORY="${IMAGE_PREFIX#"$REGISTRY"/}"
+fi
+
+require_value GITHUB_REPOSITORY "$GITHUB_REPOSITORY"
+require_value COMPOSE_PATH "$COMPOSE_PATH"
 
 if [[ ! -f "$SERVER_ENV_FILE" ]]; then
   printf 'Server env file not found: %s\n' "$SERVER_ENV_FILE" >&2
   exit 1
-fi
-
-if [[ "$REGISTRY_LOGIN" == "true" ]]; then
-  require_value GHCR_USERNAME "$GHCR_USERNAME"
-  require_value GHCR_TOKEN "$GHCR_TOKEN"
 fi
 
 umask 077
@@ -131,154 +127,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-render_compose() {
-  cat > "$tmp_compose" <<'COMPOSE'
-name: sekai-platform
+download_compose() {
+  local url="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$IMAGE_TAG/$COMPOSE_PATH"
 
-services:
-  postgres:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:?}
-      POSTGRES_USER: ${POSTGRES_USER:?}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  elasticsearch:
-    image: ${SEKAI_IMAGE_PREFIX:?}/elasticsearch:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
-      CLI_JAVA_OPTS: ${ELASTICSEARCH_CLI_JAVA_OPTS:-}
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-  api-service:
-    image: ${SEKAI_IMAGE_PREFIX:?}/api-service:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
-      InternalServices__AuthService: "http://auth-service:8080"
-      InternalServices__AssetService: "http://asset-service:8080"
-      InternalServices__SearchService: "http://search-service:8080"
-      Jwt__Issuer: ${JWT_ISSUER:?}
-      Jwt__Audience: ${JWT_AUDIENCE:?}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:?}
-      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:?}
-      InternalAuth__Actor: api-service
-      InternalAuth__PrivateKeyPkcs8: ${API_SERVICE_INTERNAL_PRIVATE_KEY:?}
-      InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:?}
-      InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:?}
-      InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:?}
-      Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
-      Database__Seed: ${DATABASE_SEED:-false}
-    ports:
-      - "${API_SERVICE_BIND_HOST:-127.0.0.1}:${API_SERVICE_PORT:-8080}:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      auth-service:
-        condition: service_started
-      asset-service:
-        condition: service_started
-      search-service:
-        condition: service_started
-
-  auth-service:
-    image: ${SEKAI_IMAGE_PREFIX:?}/auth-service:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
-      Jwt__Issuer: ${JWT_ISSUER:?}
-      Jwt__Audience: ${JWT_AUDIENCE:?}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:?}
-      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:?}
-      InternalAuth__Actor: auth-service
-      InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:?}
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  asset-service:
-    image: ${SEKAI_IMAGE_PREFIX:?}/asset-service:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
-      InternalServices__SearchService: "http://search-service:8080"
-      Jwt__Issuer: ${JWT_ISSUER:?}
-      Jwt__Audience: ${JWT_AUDIENCE:?}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:?}
-      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:?}
-      InternalAuth__Actor: asset-service
-      InternalAuth__PrivateKeyPkcs8: ${ASSET_SERVICE_INTERNAL_PRIVATE_KEY:?}
-      InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:?}
-      InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:?}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      search-service:
-        condition: service_started
-
-  search-service:
-    image: ${SEKAI_IMAGE_PREFIX:?}/search-service:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
-      Elasticsearch__Url: "http://elasticsearch:9200"
-      Elasticsearch__IndexName: ${ELASTICSEARCH_INDEX_NAME:-sekai-language-assets-v1}
-      Jwt__Issuer: ${JWT_ISSUER:?}
-      Jwt__Audience: ${JWT_AUDIENCE:?}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:?}
-      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:?}
-      InternalAuth__Actor: search-service
-      InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:?}
-      InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:?}
-      InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:?}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-
-  sync-worker:
-    image: ${SEKAI_IMAGE_PREFIX:?}/sync-worker:${SEKAI_IMAGE_TAG:?}
-    restart: unless-stopped
-    environment:
-      DOTNET_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
-      InternalServices__SearchService: "http://search-service:8080"
-      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:?}
-      InternalAuth__Actor: sync-worker
-      InternalAuth__PrivateKeyPkcs8: ${SYNC_WORKER_INTERNAL_PRIVATE_KEY:?}
-      InternalAuth__PublicKeys__sync-worker: ${SYNC_WORKER_INTERNAL_PUBLIC_KEY:?}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      search-service:
-        condition: service_started
-
-volumes:
-  postgres-data:
-  elasticsearch-data:
-COMPOSE
+  printf 'Downloading compose file. repository=%s path=%s ref=%s\n' "$GITHUB_REPOSITORY" "$COMPOSE_PATH" "$IMAGE_TAG"
+  curl -fsSL "$url" -o "$tmp_compose"
 }
 
 render_env() {
@@ -295,7 +148,7 @@ run_compose() {
 }
 
 printf 'Preparing deployment. image_prefix=%s image_tag=%s deploy_dir=%s\n' "$IMAGE_PREFIX" "$IMAGE_TAG" "$DEPLOY_DIR"
-render_compose
+download_compose
 render_env
 mv "$tmp_compose" "$compose_file"
 mv "$tmp_env" "$env_file"
@@ -306,10 +159,6 @@ run_compose config --quiet
 if [[ "$DRY_RUN" == "1" ]]; then
   printf 'Dry run completed.\n'
   exit 0
-fi
-
-if [[ "$REGISTRY_LOGIN" == "true" ]]; then
-  printf '%s' "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GHCR_USERNAME" --password-stdin >/dev/null
 fi
 
 run_compose pull

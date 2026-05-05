@@ -2,13 +2,13 @@
 
 ## 目标
 
-使用 GitHub Actions 构建并推送镜像到 GHCR。部署时，GitHub-hosted runner 通过 SSH 登录服务器，只执行服务器上的部署脚本：
+使用 GitHub Actions 构建并推送镜像到公开 GHCR package。部署时，GitHub-hosted runner 通过 SSH 登录服务器，只执行服务器上的部署脚本：
 
 ```bash
-/usr/local/bin/deploy-from-github --image-prefix <image-prefix> --image-tag <commit-sha>
+/usr/local/bin/deploy-from-github --repository <owner>/<repo> --image-prefix <image-prefix> --image-tag <commit-sha>
 ```
 
-服务器脚本负责登录 GHCR、拉取镜像、生成 Compose 运行文件并重启服务。
+服务器脚本按目标 commit 从公开 GitHub 仓库下载 `deploy/compose.server.yml`，拉取公开 GHCR 镜像，生成运行目录并重启服务。
 
 ## 1. 服务器准备 Docker
 
@@ -101,35 +101,7 @@ scripts/generate-internal-auth-keys.sh
 
 不要把生成结果提交到 Git。
 
-## 4. 配置服务器 GHCR 读取凭据
-
-公开 GHCR package 不需要配置读取凭据，跳过本节。
-
-私有 GHCR package 需要配置读取凭据。使用 classic PAT 时需要 `read:packages` 权限。
-
-在服务器创建 `/etc/sekai-platform/deploy-from-github.env`：
-
-```bash
-sudo install -o <deploy-user> -g <deploy-user> -m 0600 /dev/null /etc/sekai-platform/deploy-from-github.env
-sudo nano /etc/sekai-platform/deploy-from-github.env
-```
-
-写入：
-
-```bash
-REGISTRY_LOGIN=true
-GHCR_USERNAME=<github-user-or-machine-account>
-GHCR_TOKEN=<github-token-with-read-packages>
-```
-
-验证服务器能登录 GHCR：
-
-```bash
-source /etc/sekai-platform/deploy-from-github.env
-printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-```
-
-## 5. 配置部署 SSH key
+## 4. 配置部署 SSH key
 
 在本地生成部署专用 key：
 
@@ -149,14 +121,14 @@ ssh-copy-id -i ./sekai-platform-deploy.pub <deploy-user>@<server-host>
 ssh-keyscan -p <ssh-port> <server-host> > ./sekai-platform-known-hosts
 ```
 
-验证 SSH 只能执行部署脚本所需命令前，先确认基础连通：
+验证 SSH 能执行部署脚本：
 
 ```bash
 ssh -i ./sekai-platform-deploy -p <ssh-port> <deploy-user>@<server-host> \
   '/usr/local/bin/deploy-from-github --help'
 ```
 
-## 6. 配置 GitHub production environment
+## 5. 配置 GitHub production environment
 
 在 GitHub 仓库进入：
 
@@ -186,7 +158,7 @@ Settings -> Environments -> New environment -> production
 rm -f ./sekai-platform-deploy ./sekai-platform-deploy.pub ./sekai-platform-known-hosts
 ```
 
-## 7. 构建镜像
+## 6. 构建镜像
 
 推送到 `main` 后，GitHub Actions 自动执行：
 
@@ -194,7 +166,7 @@ rm -f ./sekai-platform-deploy ./sekai-platform-deploy.pub ./sekai-platform-known
 build-test -> build-images
 ```
 
-确认 `build-images` 成功，并且 GHCR 中存在以下镜像：
+确认 `build-images` 成功，并且 GHCR 中存在以下公开镜像：
 
 ```text
 ghcr.io/<owner>/<repo>/api-service:<commit-sha>
@@ -205,7 +177,9 @@ ghcr.io/<owner>/<repo>/sync-worker:<commit-sha>
 ghcr.io/<owner>/<repo>/elasticsearch:<commit-sha>
 ```
 
-## 8. 首次部署
+确认这些 package 的 Visibility 为 Public。服务器部署脚本不会配置 GHCR 读取凭证。
+
+## 7. 首次部署
 
 在 GitHub Actions 页面手动触发 `Production Deploy` workflow：
 
@@ -217,7 +191,7 @@ Actions -> Production Deploy -> Run workflow -> main
 
 部署脚本完成后，API Service 容器启动时会自动执行 EF Core migration。生产环境不会自动执行 seed。
 
-## 9. 服务器验证
+## 8. 服务器验证
 
 在服务器执行：
 
@@ -241,12 +215,13 @@ curl -fsS http://127.0.0.1:8080/health
 
 如需在本机连服务器验证，通过反向代理域名访问公开入口。
 
-## 10. 手动部署指定镜像
+## 9. 手动部署指定镜像
 
 在服务器执行：
 
 ```bash
 /usr/local/bin/deploy-from-github \
+  --repository <owner>/<repo> \
   --image-prefix ghcr.io/<owner>/<repo> \
   --image-tag <commit-sha>
 ```
@@ -255,17 +230,19 @@ curl -fsS http://127.0.0.1:8080/health
 
 ```bash
 /usr/local/bin/deploy-from-github \
+  --repository <owner>/<repo> \
   --image-prefix ghcr.io/<owner>/<repo> \
   --image-tag <commit-sha> \
   --dry-run
 ```
 
-## 11. 回滚
+## 10. 回滚
 
 找到上一个可用 commit SHA 后，在服务器执行：
 
 ```bash
 /usr/local/bin/deploy-from-github \
+  --repository <owner>/<repo> \
   --image-prefix ghcr.io/<owner>/<repo> \
   --image-tag <previous-good-sha>
 ```
@@ -278,7 +255,7 @@ docker compose ps
 curl -fsS http://127.0.0.1:8080/health
 ```
 
-## 12. 数据库迁移
+## 11. 数据库迁移
 
 生产环境默认开启启动迁移，关闭 seed：
 
@@ -287,7 +264,7 @@ DATABASE_AUTO_MIGRATE=true
 DATABASE_SEED=false
 ```
 
-执行部署时，脚本会更新 Compose 文件并重启服务。API Service 启动阶段执行 pending EF Core migrations。
+执行部署时，脚本会按目标 commit 从 GitHub 下载 `deploy/compose.server.yml`，更新 Compose 文件并重启服务。API Service 启动阶段执行 pending EF Core migrations。
 
 迁移失败时：
 
@@ -303,6 +280,7 @@ docker compose logs --tail=200 api-service
 
 ```bash
 /usr/local/bin/deploy-from-github \
+  --repository <owner>/<repo> \
   --image-prefix ghcr.io/<owner>/<repo> \
   --image-tag <commit-sha>
 ```
