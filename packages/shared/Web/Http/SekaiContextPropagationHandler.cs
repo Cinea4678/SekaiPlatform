@@ -1,7 +1,8 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.DependencyInjection;
+using SekaiPlatform.Shared.Web.Context;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Http;
 
 /// <summary>
 /// Propagates request trace context to internal HTTP calls.

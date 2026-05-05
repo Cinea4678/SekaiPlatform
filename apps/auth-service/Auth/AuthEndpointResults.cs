@@ -1,4 +1,5 @@
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Context;
+using SekaiPlatform.Shared.Web.Responses;
 
 /// <summary>
 /// Builds shared Auth Service endpoint result shapes.

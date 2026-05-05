@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SekaiPlatform.Database;
+using SekaiPlatform.SourceSync.Catalog;
 
 namespace SekaiPlatform.SourceSync;
 

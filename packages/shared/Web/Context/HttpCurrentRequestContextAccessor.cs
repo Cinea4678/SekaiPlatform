@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Http;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Context;
 
 /// <summary>
 /// Reads request context from the current HTTP request and validated token claims.

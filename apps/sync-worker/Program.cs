@@ -1,5 +1,5 @@
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Hosting;
 using SekaiPlatform.SourceSync;
 using SekaiPlatform.SyncWorker;
 

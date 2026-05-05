@@ -9,8 +9,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Context;
+using SekaiPlatform.Shared.Web.Http;
+using SekaiPlatform.Shared.Web.Responses;
+using SekaiPlatform.Shared.Web.Search;
 
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Hosting;
 
 /// <summary>
 /// Provides shared ASP.NET Core hosting defaults for Sekai Platform services.

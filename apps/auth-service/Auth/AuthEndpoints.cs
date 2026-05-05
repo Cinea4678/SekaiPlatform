@@ -1,4 +1,4 @@
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 
 /// <summary>
 /// Maps Auth Service internal endpoints for authentication and tenant membership operations.

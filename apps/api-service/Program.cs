@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.RateLimiting;
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Hosting;
+using SekaiPlatform.Shared.Web.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 

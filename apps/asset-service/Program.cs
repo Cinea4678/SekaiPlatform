@@ -1,5 +1,6 @@
 using SekaiPlatform.Database;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
+using SekaiPlatform.Shared.Web.Hosting;
 using SekaiPlatform.SourceSync;
 
 var builder = WebApplication.CreateBuilder(args);

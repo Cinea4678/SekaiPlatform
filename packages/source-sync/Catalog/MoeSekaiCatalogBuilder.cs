@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace SekaiPlatform.SourceSync;
+namespace SekaiPlatform.SourceSync.Catalog;
 
 /// <summary>
 /// Builds platform source story drafts from Moe Sekai master data.

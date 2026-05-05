@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 
 namespace SekaiPlatform.IntegrationTests;
 

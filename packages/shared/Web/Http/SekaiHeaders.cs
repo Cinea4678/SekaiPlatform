@@ -1,4 +1,4 @@
-namespace SekaiPlatform.Shared.Web;
+namespace SekaiPlatform.Shared.Web.Http;
 
 /// <summary>
 /// Defines platform-specific headers used for tracing and internal request context.

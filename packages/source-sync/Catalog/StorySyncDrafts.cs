@@ -1,4 +1,4 @@
-namespace SekaiPlatform.SourceSync;
+namespace SekaiPlatform.SourceSync.Catalog;
 
 /// <summary>
 /// Complete draft describing one source story and how to download its scenario.

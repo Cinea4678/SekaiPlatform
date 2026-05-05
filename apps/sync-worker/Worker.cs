@@ -1,4 +1,4 @@
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Search;
 using SekaiPlatform.SourceSync;
 
 namespace SekaiPlatform.SyncWorker;

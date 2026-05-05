@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using SekaiPlatform.Shared.Web;
+using SekaiPlatform.Shared.Web.Auth;
 
 namespace SekaiPlatform.IntegrationTests;
 
