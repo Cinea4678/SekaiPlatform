@@ -86,6 +86,11 @@ public static class SekaiInternalAuthDefaults
     public const string TranslationsImportWriteScope = "translations.import.write";
 
     /// <summary>
+    /// Scope for reading shared stories and tenant-scoped translations through Asset Service.
+    /// </summary>
+    public const string AssetsReadScope = "assets.read";
+
+    /// <summary>
     /// Scope for rebuilding Search Service index documents.
     /// </summary>
     public const string SearchIndexRebuildScope = "search.index.rebuild";

@@ -40,6 +40,7 @@ app.UseSekaiPlatformWebDefaults();
 app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapAuthProxyEndpoints();
+app.MapAssetsProxyEndpoints();
 app.MapSearchProxyEndpoints();
 app.MapSyncProxyEndpoints();
 app.MapImportProxyEndpoints();
