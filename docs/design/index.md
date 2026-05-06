@@ -1,232 +1,40 @@
-# PJS 字幕组语言资产平台 设计文档
+# PJS 字幕组语言资产平台设计文档
 
-## 总述
+## 定位
 
-本平台用于管理字幕组语言资产。一期以语言资产检索为核心。
+平台用于管理字幕组语言资产。一期后端已经完成共享原文同步、租户译文导入、统一搜索和剧情读取能力。
 
-主要使用方是字幕组组员。
+## 核心模型
 
-一期核心能力：在多租户隔离前提下，对全平台共享的剧情原文和租户内译文进行统一检索和查看。
+- 原文剧情是平台共享资产。
+- 译文、翻译版本和翻译行是租户资产。
+- 用户通过租户成员关系获得访问权限。
+- 业务接口只使用登录态中的当前租户，不信任客户端传入的租户 ID。
+- 搜索按行返回结果，原文和当前租户译文在同一索引中检索。
 
-## 一期范围
+## 能力范围
 
-### 目标
+已实现：
 
-- 支持多租户能力，多个字幕组可以共用同一平台。
-- 原文剧情作为全平台共享资产存储和索引。
-- 译文和翻译版本按租户隔离存储和索引。
-- 检索数据库内已有的所有原文和译文。
-- 支持关键词搜索。
-- 搜索结果按“行”返回，并能定位到对应剧情、剧情集和翻译版本。
-- 提供外部数据源定时同步能力，将上游剧情数据同步到平台。
-- 提供导入接口，用于后续逐步迁移已有译文资产。
-- 翻译版本可保存版本级署名 metadata，用于记录翻译、校对、合意人员信息。
-- 提供基础的用户登录、租户选择、用户邀请、日志和监控能力。
+- 用户名密码登录、登出、会话读取、租户选择、用户邀请。
+- Moe Sekai / Exmeaning master JSON 与 scenario JSON 同步。
+- 活动剧情、主线剧情、卡面剧情、区域对话、特殊剧情原文入库。
+- Elasticsearch 原文和译文索引。
+- 原文和当前租户译文关键词搜索。
+- 历史译文 JSON 批量导入。
+- 剧情类型、剧情集、剧情、原文行、翻译版本、翻译行读取接口。
+- Docker Compose 本地运行和服务器部署基线。
 
-### 非目标
+不处理：
 
-- 不做实时协同编辑。
-- 不做复杂权限矩阵。
-- 不做翻译、校对、合意等协作工作流。
-- 不做 AI 翻译。
-- 不做自动发布。
-- 不做移动端适配。
-- 不把 `SekaiText` 作为运行时依赖。
+- TXT 导入和导出。
+- 实时协同编辑。
+- 翻译、校对、合意工作流。
+- AI 翻译。
+- 自动发布。
+- 移动端适配。
 
-## 用户和权限
-
-一期只区分以下角色：
-
-- 普通用户：可以检索、查看租户内可访问的语言资产。
-- 管理员：除普通用户能力外，可以邀请用户，并使用导入接口迁移译文资产。
-- 超级管理员：除管理员能力外，可以管理租户级管理员。
-
-一期不区分翻译、校对、合意、导入员、只读成员等更细角色。
-
-## 语言资产范围
-
-一期检索范围包括：
-
-- 剧情原文。
-- 数据库内已导入的所有译文。
-- 剧情元信息，例如剧情类型、剧情集、章节标题、剧情标题、说话人、行号。
-
-剧情类型至少覆盖活动剧情和卡面剧情。
-阶段四同步设计按活动剧情、主线剧情、卡面剧情、区域对话和特殊剧情组织原文数据；具体落库层级见 @data-model.md。
-
-## 数据来源和同步
-
-原文剧情数据来自公共外部数据源，由平台定时同步。外部数据源的总体信息见 @external-api.md；Moe Sekai 对接方案见 @external-api-moe.md。
-
-同步触发方式：
-
-- 每天自动同步一次。
-- 管理员手动触发同步。
-
-同步任务负责：
-
-- 拉取上游剧情列表、剧情详情和原文行。
-- 将外部数据转换为平台内部数据模型。
-- 按 `story_groups -> stories -> story_source_lines` 写入可导航剧情集合、具体剧情和原文行。
-- 写入 PostgreSQL。
-- 更新 Elasticsearch 索引。
-- 记录同步日志、开始时间、结束时间、结果状态和错误信息。
-- 失败后不自动重试。
-
-译文数据通过导入接口进入平台。导入输入只支持 JSON。
-
-翻译版本的 `metadata.staff` 用于保存版本级署名信息。`staff` 可为空；`staff.translator`、`staff.proofreader`、`staff.approver` 分别表示翻译、校对、合意人员，均可为空。该字段只用于展示和归档，不参与权限、检索过滤或协作流程。
-
-## SekaiText 参考关系
-
-`/Users/zhangyao/build6/SekaiText` 作为格式和逻辑参考。本平台不直接依赖该项目。
-
-可参考内容包括：
-
-- `SourceTalk` / `DstTalk` 的文本行结构。
-- `\N` 换行保存规则。
-- 剧情类型、索引、章节和 `scenarioId` 的处理方式。
-
-## 搜索设计
-
-搜索必须满足租户隔离：
-
-- 原文是全平台共享资产，所有有权限的租户用户均可检索。
-- 译文、翻译版本是租户资产，只能在当前登录租户内检索。
-- 所有搜索请求必须带当前租户上下文。
-- 查询译文索引时必须按 `tenant_id` 过滤。
-
-搜索能力：
-
-- 关键词搜索原文和译文。
-- 支持日文、中文分词。
-- 支持大小写、全半角兼容。
-
-搜索结果粒度为“行”。每条结果至少包含：
-
-- 命中文本。
-- 命中字段：原文或译文。
-- 说话人。
-- 行号。
-- 剧情 ID、剧情标题。
-- 剧情集 ID、剧情集标题。
-- 剧情类型。
-- 翻译版本信息（命中译文时）。
-
-Elasticsearch 一期使用统一索引，原文和译文通过字段区分。索引文档需要携带资产类型、租户 ID、剧情 ID、翻译版本 ID 等字段：
-
-- 原文文档不绑定租户。
-- 译文文档必须绑定 `tenant_id`。
-- 查询时根据当前租户同时检索共享原文和当前租户译文。
-
-统一索引名默认为 `sekai-language-assets-v1`。文档 ID 使用稳定前缀区分资产类型：原文为 `source:{source_line_id}`，译文为 `translation:{translation_line_id}`。索引字段至少包括 `asset_type`、`tenant_id`、`story_id`、`story_type`、`scenario_id`、`story_title`、`story_group_id`、`story_group_title`、`translation_version_id`、`source_line_id`、`line_no`、`speaker` 和 `text`。
-
-Search Service 提供内部索引维护接口 `POST /internal/search/index/rebuild`，用于按 `all`、`source` 或 `translation` 范围从 PostgreSQL 重建索引。该接口完成鉴权和参数校验后将任务写入后台队列，并返回 `202 Accepted`。Phase 6 的 `/api/search` 只读取该索引。
-
-分词组件：
-
-| 语言/能力 | 组件 |
-|---|---|
-| 中文分词 | Elasticsearch `analysis-smartcn` 插件 |
-| 日文分词 | Elasticsearch `analysis-kuromoji` 插件 |
-| Unicode 规范化、大小写折叠、全半角兼容 | Elasticsearch `analysis-icu` 插件 |
-
-## 历史译文导入
-
-一期提供历史译文批量导入接口。
-
-导入接口应支持：
-
-- 写入当前 token 的租户，不接受客户端指定租户。
-- 指定剧情或通过外部标识匹配剧情。
-- 以 JSON 形式上传批量导入目标结构体。
-- 支持导入翻译版本级 `metadata.staff`。
-- 导入后更新 PostgreSQL 和 Elasticsearch。
-
-一期不提供 TXT 导入功能。
-
-## 技术选型
-
-| 层级 | 技术 | 说明 |
-|---|---|---|
-| 后端 | .NET / ASP.NET Core | 用于构建 Web API、后台任务和微服务。 |
-| 前端 | Vue | 用于构建检索、查看、导入和管理页面。 |
-| 数据库 | PostgreSQL | 作为主存储，保存租户、用户、剧情、原文、译文和任务状态。 |
-| ORM | EF Core | 用于 .NET 服务访问 PostgreSQL 和管理数据库迁移。 |
-| 搜索引擎 | Elasticsearch | 用于全文搜索、分词和租户隔离查询。 |
-| 部署 | Docker Compose | 一期以低成本、易部署、易备份为优先。 |
-| API 层 | ASP.NET Core Web API | 作为外部请求入口，负责鉴权、验签、参数校验和服务编排。 |
-
-## 服务间通信方案
-
-- 前端只访问 API Service。
-- API Service 使用 ASP.NET Core Web API 实现。
-- API Service 完成外部请求的登录校验、权限校验、请求验签、参数校验和返回格式统一。
-- API Service 通过内部通信方式调用 Auth Service、Asset Service、Search Service 等内部容器服务。
-- 内部服务之间使用 HTTP REST 同步调用。
-- Docker Compose 下使用服务名作为内部网络地址。
-- 通过 ASP.NET Core 的配置、健康检查、日志和依赖注入管理服务连接。
-- 服务间调用统一使用 @security-model.md 定义的内部 token。内部 token 使用非对称签名，并携带调用方、目标服务、授权范围和可选用户租户上下文。
-- 外部用户 JWT 只用于前端到 API Service 的外部身份边界。API Service 验证外部用户 JWT 后，将用户上下文转换为面向目标服务的内部 token。
-- 内部服务不得把外部用户 JWT、`X-Sekai-User-Id`、`X-Sekai-Tenant-Id` 或长期共享明文 secret 作为新的服务间授权模型。
-
-## 日志和追踪设计
-
-后端服务使用 .NET `System.Diagnostics.Activity` 作为请求追踪上下文，日志使用 ASP.NET Core `ILogger`。
-
-追踪约定：
-
-- `trace_id` 优先使用 `Activity.Current.TraceId`。
-- 没有 Activity 时，回退到 `HttpContext.TraceIdentifier`。
-- 错误响应中的 `trace_id` 与当前请求日志 scope 中的 `trace_id` 保持一致。
-- 服务间 HTTP 调用传播标准 W3C Trace Context，即 `traceparent`。
-- 同时透传平台自定义排障 Header：`X-Sekai-Trace-Id`。
-
-日志约定：
-
-- 每个请求进入服务后开启 logging scope。
-- scope 字段至少包含 `trace_id`、`user_id`、`tenant_id`。
-- 控制台日志输出 scope。
-- ASP.NET Core logging 启用 `ActivityTrackingOptions.TraceId`、`SpanId`、`ParentId`。
-- 同一次外部请求跨多个服务时，`TraceId` 保持一致，`SpanId` 表示每个服务内的当前调用片段。
-
-追踪 Header：
-
-| Header | 说明 |
-|---|---|
-| `traceparent` | W3C Trace Context 标准 Header。 |
-| `X-Sekai-Trace-Id` | 平台可读追踪 ID，用于错误响应和人工排障。 |
-
-上下文 Header 约束：
-
-- 外部入口不得信任客户端传入的 `X-Sekai-User-Id`、`X-Sekai-Tenant-Id`。
-- API Service 必须剥离客户端自带的同名上下文 Header。
-- `X-Sekai-User-Id` 和 `X-Sekai-Tenant-Id` 不作为鉴权或授权输入；如迁移期保留，只能作为日志兼容字段。
-- 用户 ID、租户 ID、调用方身份和授权范围必须来自已验证的内部 token claims，并由内部服务继续执行领域授权。
-
-## API 文档
-
-- API 文档使用 Apifox 编写和维护。
-- Apifox 项目编号：`8210187`。
-- 文档站：<https://sekai-platform.apifox.cn/>。
-- 当前仓库不维护本地 OpenAPI 源文件；如需机器可读文档，优先使用 ASP.NET Core 自动生成能力，或从 Apifox 导出/集成。
-
-## 总体架构
-
-一期采用微服务架构，使用 Docker Compose 部署。
-
-系统由以下服务组成：
-
-1. API Service：统一暴露前端调用入口，处理验签、鉴权、参数校验、服务编排和返回格式统一。
-2. Auth Service：负责用户名密码登录、登出、登录状态、租户选择和用户邀请。
-3. Asset Service：负责剧情、原文、译文、翻译版本和导入。
-4. Search Service：负责封装 Elasticsearch 查询和索引写入。
-5. Sync Worker：负责定时调用外部数据源，同步原文剧情数据。
-6. Web Frontend：Vue 前端应用。
-7. PostgreSQL：主数据库。
-8. Elasticsearch：搜索引擎。
-
-模块关系：
+## 架构
 
 ```text
 Web Frontend
@@ -241,126 +49,87 @@ API Service
     |
     +-- Search Service --- Elasticsearch
 
-Sync Worker -------- External Data Source
+Sync Worker -------- Moe Sekai / Exmeaning
     |
     +-------------- PostgreSQL
     |
     +-------------- Search Service --- Elasticsearch
 ```
 
-## 服务边界
+服务职责：
 
-### API Service
-
-- 对前端提供统一 API 入口。
-- 使用 ASP.NET Core Web API 实现。
-- 完成请求验签、登录校验、权限校验和参数校验。
-- 将当前用户 ID、当前租户 ID 传递给后端服务。
-- 调用内部服务并聚合简单查询结果。
-- 统一错误格式和响应格式。
-
-### Auth Service
-
-- 用户名密码登录。
-- 保留 OAuth 用户绑定模型，但一期不实现 QQ OAuth 登录。
-- 加载用户可访问租户。
-- 选择和切换租户。
-- 邀请用户。
-
-### Asset Service
-
-- 管理剧情集、剧情、原文行。
-- 管理翻译版本和翻译行。
-- 提供译文导入接口。
-- 在资产变更后触发索引更新。
-
-### Search Service
-
-- 封装 Elasticsearch 查询 DSL。
-- 提供关键词搜索。
-- 确保译文查询始终带租户过滤。
-- 提供索引创建、重建和增量更新能力。
-
-### Sync Worker
-
-- 按计划调用外部数据源。
-- 同步原文剧情数据。
-- 下载 master JSON 和 scenario JSON。
-- 解析活动剧情、主线剧情、卡面剧情、区域对话和特殊剧情。
-- 写入数据库。
-- 更新搜索索引。
-- 记录同步日志和错误。
-
-## 鉴权设计
-
-一期优先支持用户名密码登录。
-
-登录成功后的用户状态包括：
-
-- 用户 ID。
-- 当前租户 ID，可空。
-
-仅当当前租户 ID 不为空时，登录状态才算可以访问业务 API。
-
-如果用户只有一个可访问租户，登录后直接进入该租户。如果用户有多个可访问租户，登录后进入租户选择阶段。
-
-QQ OAuth 作为后续主要登录方式保留设计，不在一期实现。
-
-平台采用统一安全模型，详见 @security-model.md：
-
-- 外部用户 token 只用于前端到 API Service 的登录态。
-- 内部服务调用只接受内部 token。
-- 内部 token 使用非对称签名，目标服务只持有验证公钥。
-- 内部 endpoint 必须归类为用户代理内部接口、系统内部接口或健康检查，并绑定明确 scope。
-- `X-Sekai-Maintenance-Token` 属于旧维护凭证，内部服务不再使用。
+| 服务 | 职责 |
+|---|---|
+| API Service | 外部统一入口，处理登录态、权限、参数校验、服务编排和错误格式。 |
+| Auth Service | 用户登录、会话、租户选择、可访问租户、用户邀请。 |
+| Asset Service | 剧情资产读取、原文同步落库、译文版本和译文行、历史译文导入。 |
+| Search Service | Elasticsearch mapping、索引维护、关键词查询和租户过滤。 |
+| Sync Worker | 定时同步 Moe Sekai / Exmeaning 数据源。 |
 
 ## 数据隔离
 
-平台采用“共享原文、租户隔离译文”的模型：
+- `story_groups`、`stories`、`story_source_lines` 全平台共享。
+- `translation_versions`、`translation_lines` 按 `tenant_id` 隔离。
+- 搜索原文不绑定租户。
+- 搜索译文必须按当前 `tenant_id` 过滤。
+- Asset Service 和 Search Service 在内部接口中继续校验用户仍是当前租户 active 成员。
 
-- `story_groups`、`stories`、`story_source_lines` 等原文相关数据全平台共享。
-- `translation_versions`、`translation_lines` 等译文相关数据按 `tenant_id` 隔离。
-- 用户通过 `user_tenants` 获得租户访问权限。
-- 所有业务 API 必须从登录状态中获取当前租户，不能信任客户端直接传入的租户 ID。
+## 搜索
 
-## 部署设计
+Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 
-一期使用 Docker Compose 部署。当前后端本地环境包含：
+文档类型：
 
-- API Service 容器。
-- Auth Service 容器。
-- Asset Service 容器。
-- Search Service 容器。
-- Sync Worker 容器。
-- PostgreSQL 容器。
-- Elasticsearch 容器。
+| 类型 | 文档 ID | 租户 |
+|---|---|---|
+| 原文 | `source:{source_line_id}` | 不绑定租户 |
+| 译文 | `translation:{translation_line_id}` | 必须绑定 `tenant_id` |
 
-Vue 前端规划中，预期后续套在 API Service 入口下统一对外提供。
+索引字段包含资产类型、租户 ID、剧情 ID、剧情类型、scenario ID、剧情标题、剧情集 ID、剧情集标题、翻译版本 ID、原文行 ID、行号、说话人和正文。
 
-部署目标：
+分词能力：
 
-- 单机可运行。
-- 服务之间通过 Docker Compose 网络通信。
-- PostgreSQL 和 Elasticsearch 数据目录持久化。
-- 支持基础健康检查。
-- 支持日志输出到容器标准输出。
+| 能力 | Elasticsearch 插件 |
+|---|---|
+| 中文分词 | `analysis-smartcn` |
+| 日文分词 | `analysis-kuromoji` |
+| Unicode 规范化、大小写折叠、全半角兼容 | `analysis-icu` |
 
-## 前端页面
+索引刷新规则：
 
-一期前端至少包含：
+- 原文同步成功后刷新对应 story 的原文索引和相关译文剧情元信息。
+- 历史译文导入成功后触发 `search.translation.refresh`。
+- 刷新失败不回滚 PostgreSQL 结果，可通过重建接口修复。
 
-- 登录页。
-- 租户选择页。
-- 搜索页。
-- 剧情详情页。
-- 导入页。
-- 用户邀请页。
-- 同步任务状态页。
+## 鉴权
+
+平台采用统一安全模型，详见 `security-model.md`。
+
+- 外部用户 token 只用于前端到 API Service 的登录态。
+- 内部服务调用只接受内部 token。
+- 内部 token 使用非对称签名，携带调用方、目标服务、scope、可选用户和租户上下文。
+- 内部服务不得使用外部 JWT、上下文 Header 或 maintenance token 作为授权依据。
+
+## 数据源
+
+原文剧情来自 Moe Sekai / Exmeaning 公共静态数据源：
+
+- master JSON 提供活动、主线、卡牌、区域对话、特殊剧情等元数据。
+- scenario JSON 提供具体剧情内容。
+- 同步结果写入 `story_groups -> stories -> story_source_lines`。
+
+详细规则见 `external-api.md`。
+
+## API 文档
+
+- 正式 API 文档维护在 Apifox。
+- Apifox 项目编号：`8210187`。
+- 文档站：<https://sekai-platform.apifox.cn/>。
+- 当前仓库不维护本地 OpenAPI 源文件。
 
 ## 相关文档
 
-- 接口设计文档：@interface.md
-- 数据模型设计文档：@data-model.md
-- 外部数据源设计文档：@external-api.md
-- Moe Sekai 对接设计文档：@external-api-moe.md
-- 安全模型文档：@security-model.md
+- `data-model.md`：核心数据模型。
+- `interface.md`：仓内接口概览。
+- `external-api.md`：Moe Sekai / Exmeaning 数据源同步规则。
+- `security-model.md`：统一安全模型。

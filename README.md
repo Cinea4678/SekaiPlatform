@@ -109,12 +109,11 @@ dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj
 - [数据模型](docs/design/data-model.md)
 - [外部数据源](docs/design/external-api.md)
 - [安全模型](docs/design/security-model.md)
-- [实施计划](docs/plan/index.md)
-- [部署交付准备记录](docs/plan/phase-9-status.md)
+- [一期后端交付状态](docs/plan/first-release.md)
 - [Docker Compose 与 GitHub Actions 部署说明](docs/deploy/docker-compose-github-actions.md)
 
 ## 约定
 
 - 当前仓库不维护本地 OpenAPI 源文件，正式 API 文档以 Apifox 为准。
 - 涉及架构、数据模型、接口或关键业务流程的改动，先查看 `docs/design/` 下的相关设计文档。
-- 涉及阶段计划和交付记录的改动，先查看 `docs/plan/`。
+- 涉及后端交付状态和剩余部署事项的改动，先查看 `docs/plan/`。
