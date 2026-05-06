@@ -197,6 +197,7 @@ Table: translation_versions
 | story_id | BIGINT | No | 剧情表的主键。 |
 | version_no | INT | No | 版本号，从 1 开始 |
 | title | VARCHAR(255) | Yes | 版本标题 |
+| is_published | BOOLEAN | No | 是否公开发布。公开发布后可通过开放 API 免鉴权查询，默认 false。 |
 | metadata | JSON | Yes | 版本级扩展信息，包括署名人员 |
 | created_by | BIGINT | No | 创建用户 ID |
 | created_at | DATETIME | No | 创建时间 |

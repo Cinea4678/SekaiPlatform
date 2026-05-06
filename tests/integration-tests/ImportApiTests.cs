@@ -118,6 +118,7 @@ public sealed class ImportApiTests : IDisposable
             .ToArrayAsync();
         Assert.Equal(2, versions.Length);
         Assert.All(versions, version => Assert.Equal(login.TenantId, version.TenantId));
+        Assert.All(versions, version => Assert.False(version.IsPublished));
         Assert.Contains(versions, version => version.StoryId == firstStory.StoryId && version.Title == "历史译文 A");
         Assert.Contains(versions, version => version.StoryId == secondStory.StoryId && version.Title == "历史译文 B");
         var firstVersion = versions.Single(version => version.StoryId == firstStory.StoryId);

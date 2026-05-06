@@ -398,6 +398,11 @@ public sealed class TranslationVersion
     public string? Metadata { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this translation version is published to unauthenticated open API reads.
+    /// </summary>
+    public bool IsPublished { get; set; }
+
+    /// <summary>
     /// Gets or sets the identifier of the user who created this version.
     /// </summary>
     public long CreatedBy { get; set; }
