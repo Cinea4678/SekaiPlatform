@@ -41,6 +41,11 @@ public static class SekaiInternalAuthDefaults
     public const string SearchServiceActor = "search-service";
 
     /// <summary>
+    /// Open API Service actor name used in internal tokens.
+    /// </summary>
+    public const string OpenApiServiceActor = "openapi-service";
+
+    /// <summary>
     /// Sync Worker actor name used in internal tokens.
     /// </summary>
     public const string SyncWorkerActor = "sync-worker";
@@ -89,6 +94,11 @@ public static class SekaiInternalAuthDefaults
     /// Scope for reading shared stories and tenant-scoped translations through Asset Service.
     /// </summary>
     public const string AssetsReadScope = "assets.read";
+
+    /// <summary>
+    /// Scope for reading published translations through Open API.
+    /// </summary>
+    public const string PublicTranslationReadScope = "public.translation.read";
 
     /// <summary>
     /// Scope for rebuilding Search Service index documents.

@@ -99,6 +99,7 @@ services:
       InternalAuth__PrivateKeyPkcs8: ${ASSET_SERVICE_INTERNAL_PRIVATE_KEY:-}
       InternalAuth__PublicKeys__api-service: ${API_SERVICE_INTERNAL_PUBLIC_KEY:-}
       InternalAuth__PublicKeys__asset-service: ${ASSET_SERVICE_INTERNAL_PUBLIC_KEY:-}
+      InternalAuth__PublicKeys__openapi-service: ${OPENAPI_SERVICE_INTERNAL_PUBLIC_KEY:-}
       MoeSekai__RequestTimeout: ${MOESEKAI_REQUEST_TIMEOUT:-00:03:00}
       MoeSekai__ScenarioDownloadConcurrency: ${MOESEKAI_SCENARIO_DOWNLOAD_CONCURRENCY:-8}
       SearchIndexRefresh__RequestTimeout: ${SEARCH_INDEX_REFRESH_TIMEOUT:-00:02:00}
@@ -107,6 +108,24 @@ services:
       postgres:
         condition: service_healthy
       search-service:
+        condition: service_started
+
+  openapi-service:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: apps/openapi-service/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      InternalServices__AssetService: "http://asset-service:8080"
+      InternalAuth__Issuer: ${INTERNAL_AUTH_ISSUER:-sekai-platform-internal}
+      InternalAuth__Actor: openapi-service
+      InternalAuth__PrivateKeyPkcs8: ${OPENAPI_SERVICE_INTERNAL_PRIVATE_KEY:-}
+      InternalAuth__PublicKeys__openapi-service: ${OPENAPI_SERVICE_INTERNAL_PUBLIC_KEY:-}
+    ports:
+      - "${OPENAPI_SERVICE_PORT:-8084}:8080"
+    depends_on:
+      asset-service:
         condition: service_started
 
   search-service:

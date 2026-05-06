@@ -79,6 +79,8 @@ API_SERVICE_INTERNAL_PRIVATE_KEY=<api-service-private-key>
 API_SERVICE_INTERNAL_PUBLIC_KEY=<api-service-public-key>
 ASSET_SERVICE_INTERNAL_PRIVATE_KEY=<asset-service-private-key>
 ASSET_SERVICE_INTERNAL_PUBLIC_KEY=<asset-service-public-key>
+OPENAPI_SERVICE_INTERNAL_PRIVATE_KEY=<openapi-service-private-key>
+OPENAPI_SERVICE_INTERNAL_PUBLIC_KEY=<openapi-service-public-key>
 SYNC_WORKER_INTERNAL_PRIVATE_KEY=<sync-worker-private-key>
 SYNC_WORKER_INTERNAL_PUBLIC_KEY=<sync-worker-public-key>
 
@@ -88,6 +90,8 @@ DATABASE_SEED=false
 
 API_SERVICE_BIND_HOST=127.0.0.1
 API_SERVICE_PORT=8080
+OPENAPI_SERVICE_BIND_HOST=127.0.0.1
+OPENAPI_SERVICE_PORT=8084
 ELASTICSEARCH_INDEX_NAME=sekai-language-assets-v1
 ELASTICSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
 ELASTICSEARCH_CLI_JAVA_OPTS=
@@ -172,6 +176,7 @@ build-test -> build-images
 ghcr.io/<owner>/<repo>/api-service:<commit-sha>
 ghcr.io/<owner>/<repo>/auth-service:<commit-sha>
 ghcr.io/<owner>/<repo>/asset-service:<commit-sha>
+ghcr.io/<owner>/<repo>/openapi-service:<commit-sha>
 ghcr.io/<owner>/<repo>/search-service:<commit-sha>
 ghcr.io/<owner>/<repo>/sync-worker:<commit-sha>
 ghcr.io/<owner>/<repo>/elasticsearch:<commit-sha>

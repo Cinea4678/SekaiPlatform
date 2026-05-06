@@ -67,7 +67,7 @@ public static class SekaiWebApplicationBuilderExtensions
         {
             AddExternalJwtAuthentication(builder);
         }
-        else
+        else if (authenticationMode == SekaiAuthenticationMode.InternalToken)
         {
             AddInternalTokenAuthentication(builder);
         }
@@ -175,8 +175,13 @@ public static class SekaiWebApplicationBuilderExtensions
     /// Adds shared request tracing, error handling, authentication, and authorization middleware.
     /// </summary>
     /// <param name="app">The web application to configure.</param>
+    /// <param name="useAuthentication">Whether to add authentication and authorization middleware.</param>
+    /// <param name="writeUnhandledExceptionAsync">Optional service-specific unhandled exception response writer.</param>
     /// <returns>The same application for chaining.</returns>
-    public static WebApplication UseSekaiPlatformWebDefaults(this WebApplication app)
+    public static WebApplication UseSekaiPlatformWebDefaults(
+        this WebApplication app,
+        bool useAuthentication = true,
+        Func<HttpContext, Exception, Task>? writeUnhandledExceptionAsync = null)
     {
         app.Use(async (httpContext, next) =>
         {
@@ -212,15 +217,25 @@ public static class SekaiWebApplicationBuilderExtensions
                 }
 
                 httpContext.Response.Clear();
-                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                await httpContext.Response.WriteAsJsonAsync(
-                    new ErrorResponse("服务器内部错误。", requestContext.TraceId),
-                    httpContext.RequestAborted);
+                if (writeUnhandledExceptionAsync is not null)
+                {
+                    await writeUnhandledExceptionAsync(httpContext, exception);
+                }
+                else
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    await httpContext.Response.WriteAsJsonAsync(
+                        new ErrorResponse("服务器内部错误。", requestContext.TraceId),
+                        httpContext.RequestAborted);
+                }
             }
         });
 
-        app.UseAuthentication();
-        app.UseAuthorization();
+        if (useAuthentication)
+        {
+            app.UseAuthentication();
+            app.UseAuthorization();
+        }
 
         return app;
     }

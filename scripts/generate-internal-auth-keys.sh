@@ -27,4 +27,5 @@ generate_actor() {
 
 generate_actor "api-service" "API_SERVICE"
 generate_actor "asset-service" "ASSET_SERVICE"
+generate_actor "openapi-service" "OPENAPI_SERVICE"
 generate_actor "sync-worker" "SYNC_WORKER"

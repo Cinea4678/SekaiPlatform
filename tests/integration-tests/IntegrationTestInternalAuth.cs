@@ -12,6 +12,7 @@ internal static class IntegrationTestInternalAuth
     private const string Issuer = "sekai-platform-internal";
     private static readonly Lazy<ActorKey> ApiService = new(CreateActorKey);
     private static readonly Lazy<ActorKey> AssetService = new(CreateActorKey);
+    private static readonly Lazy<ActorKey> OpenApiService = new(CreateActorKey);
     private static readonly Lazy<ActorKey> SyncWorker = new(CreateActorKey);
 
     /// <summary>
@@ -26,6 +27,7 @@ internal static class IntegrationTestInternalAuth
         configuration["InternalAuth:Actor"] = actor;
         configuration["InternalAuth:PublicKeys:api-service"] = ApiService.Value.PublicKey;
         configuration["InternalAuth:PublicKeys:asset-service"] = AssetService.Value.PublicKey;
+        configuration["InternalAuth:PublicKeys:openapi-service"] = OpenApiService.Value.PublicKey;
         configuration["InternalAuth:PublicKeys:sync-worker"] = SyncWorker.Value.PublicKey;
 
         if (includePrivateKey)
@@ -73,6 +75,7 @@ internal static class IntegrationTestInternalAuth
             {
                 [SekaiInternalAuthDefaults.ApiServiceActor] = ApiService.Value.PublicKey,
                 [SekaiInternalAuthDefaults.AssetServiceActor] = AssetService.Value.PublicKey,
+                [SekaiInternalAuthDefaults.OpenApiServiceActor] = OpenApiService.Value.PublicKey,
                 [SekaiInternalAuthDefaults.SyncWorkerActor] = SyncWorker.Value.PublicKey
             }
         }));
@@ -86,6 +89,7 @@ internal static class IntegrationTestInternalAuth
         {
             SekaiInternalAuthDefaults.ApiServiceActor => ApiService.Value,
             SekaiInternalAuthDefaults.AssetServiceActor => AssetService.Value,
+            SekaiInternalAuthDefaults.OpenApiServiceActor => OpenApiService.Value,
             SekaiInternalAuthDefaults.SyncWorkerActor => SyncWorker.Value,
             _ => throw new ArgumentOutOfRangeException(nameof(actor), actor, "No integration-test key for actor.")
         };

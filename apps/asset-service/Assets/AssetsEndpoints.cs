@@ -13,6 +13,7 @@ internal static class AssetsEndpoints
     private const int DefaultPageSize = 20;
     private const int MaxPageSize = 100;
     private const int MaxResultWindow = 10_000;
+    private const int MaxPublicTranslationBatchSize = 100;
 
     private static readonly StoryTypeInfoResponse[] StoryTypes =
     [
@@ -32,6 +33,44 @@ internal static class AssetsEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapAssetsEndpoints(this IEndpointRouteBuilder app)
     {
+        SecurePublicTranslationRead(app.MapGet("/internal/public/translations/{scenarioId}", async Task<IResult> (
+            string scenarioId,
+            SekaiPlatformDbContext dbContext,
+            ICurrentRequestContextAccessor contextAccessor,
+            CancellationToken cancellationToken) =>
+        {
+            var normalizedScenarioId = NormalizeOptionalText(scenarioId);
+            if (normalizedScenarioId is null)
+            {
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情 ID 无效。");
+            }
+
+            var result = await PublicTranslationEndpointResults.GetScenarioAsync(
+                dbContext,
+                normalizedScenarioId,
+                cancellationToken);
+            return Results.Json(result);
+        }));
+
+        SecurePublicTranslationRead(app.MapPost("/internal/public/translations/batch", async Task<IResult> (
+            PublicTranslationBatchRequest? request,
+            SekaiPlatformDbContext dbContext,
+            ICurrentRequestContextAccessor contextAccessor,
+            CancellationToken cancellationToken) =>
+        {
+            if (!TryReadPublicScenarioIds(request, out var scenarioIds))
+            {
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情 ID 列表无效。");
+            }
+
+            var results = await PublicTranslationEndpointResults.GetScenariosAsync(
+                dbContext,
+                scenarioIds,
+                includeLines: false,
+                cancellationToken);
+            return Results.Json(new PublicTranslationBatchResponse(results));
+        }));
+
         SecureAssetsRead(app.MapGet("/internal/story-types", () =>
         {
             return Results.Json(StoryTypes);
@@ -304,6 +343,45 @@ internal static class AssetsEndpoints
 
                 return await next(context);
             });
+    }
+
+    /// <summary>
+    /// Applies internal authorization for anonymous Open API public translation reads.
+    /// </summary>
+    private static RouteHandlerBuilder SecurePublicTranslationRead(RouteHandlerBuilder builder)
+    {
+        return builder.RequireInternalAuthorization(
+            SekaiInternalAuthDefaults.PublicTranslationReadScope,
+            [SekaiInternalAuthDefaults.OpenApiServiceActor]);
+    }
+
+    /// <summary>
+    /// Normalizes and validates public translation batch scenario identifiers.
+    /// </summary>
+    private static bool TryReadPublicScenarioIds(
+        PublicTranslationBatchRequest? request,
+        out IReadOnlyList<string> scenarioIds)
+    {
+        scenarioIds = [];
+        if (request?.ScenarioIds is not { Count: > 0 and <= MaxPublicTranslationBatchSize })
+        {
+            return false;
+        }
+
+        var normalized = new string[request.ScenarioIds.Count];
+        for (var i = 0; i < request.ScenarioIds.Count; i++)
+        {
+            var scenarioId = NormalizeOptionalText(request.ScenarioIds[i]);
+            if (scenarioId is null)
+            {
+                return false;
+            }
+
+            normalized[i] = scenarioId;
+        }
+
+        scenarioIds = normalized;
+        return true;
     }
 
     /// <summary>

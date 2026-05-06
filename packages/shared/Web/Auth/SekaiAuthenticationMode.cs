@@ -6,6 +6,11 @@ namespace SekaiPlatform.Shared.Web.Auth;
 public enum SekaiAuthenticationMode
 {
     /// <summary>
+    /// Does not validate incoming caller credentials.
+    /// </summary>
+    Anonymous,
+
+    /// <summary>
     /// Validates frontend user access tokens.
     /// </summary>
     ExternalJwt,
