@@ -28,7 +28,8 @@
 - 译文、翻译版本和翻译行按租户隔离。
 - 业务 API 使用登录态中的当前租户，不接受客户端传入租户 ID 作为权限依据。
 - 内部服务调用使用 `docs/design/security-model.md` 定义的内部 token。
-- API 文档在 Apifox 项目 `8210187` 维护，文档站为 <https://sekai-platform.apifox.cn/>。
+- 平台业务 API 文档在 Apifox 项目 `8210187` 维护，文档站为 <https://sekai-platform.apifox.cn/>。
+- 开放 API 文档在 Apifox 项目 `8216122` 维护，草案见 `docs/design/open-api.md`。
 - 当前仓库不维护本地 OpenAPI 源文件。
 
 ## 工程约束

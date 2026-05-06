@@ -4,10 +4,13 @@
 
 正式 API 文档维护在 Apifox。
 
-- Apifox 项目编号：`8210187`
+- 平台业务 API Apifox 项目编号：`8210187`
+- 开放 API Apifox 项目编号：`8216122`
 - 文档站：<https://sekai-platform.apifox.cn/>
 
 当前仓库只保留接口语义概览，不维护本地 OpenAPI 源文件。
+
+开放 API 使用独立 OpenApiService 和独立 Apifox 项目，草案见 `open-api.md`。
 
 ## 全局约定
 
@@ -20,6 +23,7 @@ http://localhost:8080
 统一约定：
 
 - 外部 API 使用 `/api` 前缀。
+- 开放 API 由 OpenApiService 在独立端口承载，当前暂不开放业务接口；后续开放时在该端口下继续使用 `/api` 风格路径。
 - 正常响应直接返回 JSON 结果，不额外包裹。
 - 错误响应返回 `{ "msg": "...", "trace_id": "..." }`。
 - 字段使用 snake_case。

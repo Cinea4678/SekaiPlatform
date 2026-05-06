@@ -2,7 +2,7 @@
 
 ## 定位
 
-平台用于管理字幕组语言资产。一期后端已经完成共享原文同步、租户译文导入、统一搜索和剧情读取能力。
+平台用于管理字幕组语言资产。一期后端已经完成共享原文同步、租户译文导入、统一搜索和剧情读取能力。后续开放 API 通过独立 OpenApiService 提供单独监听端口，当前暂不开放业务接口。
 
 ## 核心模型
 
@@ -49,6 +49,10 @@ API Service
     |
     +-- Search Service --- Elasticsearch
 
+External Partner
+    |
+OpenApiService
+
 Sync Worker -------- Moe Sekai / Exmeaning
     |
     +-------------- PostgreSQL
@@ -61,6 +65,7 @@ Sync Worker -------- Moe Sekai / Exmeaning
 | 服务 | 职责 |
 |---|---|
 | API Service | 外部统一入口，处理登录态、权限、参数校验、服务编排和错误格式。 |
+| OpenApiService | 开放 API 独立监听入口，处理匿名访问、IP 限流和后续开放接口承载。 |
 | Auth Service | 用户登录、会话、租户选择、可访问租户、用户邀请。 |
 | Asset Service | 剧情资产读取、原文同步落库、译文版本和译文行、历史译文导入。 |
 | Search Service | Elasticsearch mapping、索引维护、关键词查询和租户过滤。 |
@@ -106,6 +111,7 @@ Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 平台采用统一安全模型，详见 `security-model.md`。
 
 - 外部用户 token 只用于前端到 API Service 的登录态。
+- 开放 API 当前允许匿名访问，只建立合作伙伴到 OpenApiService 的独立监听链路，暂不开放业务接口。
 - 内部服务调用只接受内部 token。
 - 内部 token 使用非对称签名，携带调用方、目标服务、scope、可选用户和租户上下文。
 - 内部服务不得使用外部 JWT、上下文 Header 或 maintenance token 作为授权依据。
@@ -123,7 +129,8 @@ Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 ## API 文档
 
 - 正式 API 文档维护在 Apifox。
-- Apifox 项目编号：`8210187`。
+- 平台业务 API Apifox 项目编号：`8210187`。
+- 开放 API Apifox 项目编号：`8216122`。
 - 文档站：<https://sekai-platform.apifox.cn/>。
 - 当前仓库不维护本地 OpenAPI 源文件。
 
@@ -131,5 +138,6 @@ Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 
 - `data-model.md`：核心数据模型。
 - `interface.md`：仓内接口概览。
+- `open-api.md`：开放 API 草案和匿名访问设计。
 - `external-api.md`：Moe Sekai / Exmeaning 数据源同步规则。
 - `security-model.md`：统一安全模型。

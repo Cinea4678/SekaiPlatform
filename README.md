@@ -41,6 +41,7 @@ gantt
 - 统一搜索：检索全平台共享原文和当前租户译文，结果定位到剧情、章节和具体行。
 - 剧情详情：查看剧情、原文行、翻译版本和译文行。
 - 租户隔离：不同字幕组的译文、翻译版本和导入结果相互隔离。
+- 规划中的开放 API：通过独立 OpenApiService 提供开放 API 监听端口，当前暂不开放业务接口。
 - 后端部署：提供 Docker Compose 本地环境、服务器 Compose 部署和 GitHub Actions 构建部署入口。
 
 ## 系统组成
@@ -50,6 +51,7 @@ gantt
 | 组件 | 职责 |
 |---|---|
 | API Service | 对外 API 入口，负责鉴权、参数校验和服务编排 |
+| OpenApiService | 规划中的合作伙伴开放 API 入口，负责独立监听、匿名访问和 IP 限流 |
 | Auth Service | 登录、租户选择和用户会话 |
 | Asset Service | 剧情、原文、译文、翻译版本和导入 |
 | Search Service | 搜索查询和 Elasticsearch 索引维护 |
@@ -104,9 +106,11 @@ dotnet test tests/integration-tests/SekaiPlatform.IntegrationTests.csproj
 
 ## 文档入口
 
-- API 文档维护在 Apifox 项目 `8210187`，文档站：<https://sekai-platform.apifox.cn/>。
+- 平台业务 API 文档维护在 Apifox 项目 `8210187`，文档站：<https://sekai-platform.apifox.cn/>。
+- 开放 API 文档维护在 Apifox 项目 `8216122`。
 - [总体设计](docs/design/index.md)
 - [接口草案](docs/design/interface.md)
+- [开放 API 草案](docs/design/open-api.md)
 - [数据模型](docs/design/data-model.md)
 - [外部数据源](docs/design/external-api.md)
 - [安全模型](docs/design/security-model.md)
