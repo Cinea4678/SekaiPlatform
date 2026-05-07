@@ -47,7 +47,7 @@ const router = createRouter({
         {
           path: 'search',
           name: 'Search',
-          component: () => import('@/views/PlaceholderView.vue'),
+          component: () => import('@/views/search/SearchView.vue'),
           meta: {
             title: '统一搜索',
             description: '集中检索共享原文和当前租户译文，帮助成员快速定位剧情行。',
@@ -96,6 +96,15 @@ const router = createRouter({
           meta: {
             title: '剧情详情',
             description: '查看剧情元信息和资产归属。',
+          },
+        },
+        {
+          path: 'translations/:translationVersionId',
+          name: 'TranslationVersionDetail',
+          component: () => import('@/views/assets/TranslationVersionView.vue'),
+          meta: {
+            title: '译文版本',
+            description: '打开译文版本对应的剧情阅读页。',
           },
         },
         {
