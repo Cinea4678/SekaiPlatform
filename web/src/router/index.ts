@@ -56,10 +56,46 @@ const router = createRouter({
         {
           path: 'assets',
           name: 'Assets',
-          component: () => import('@/views/PlaceholderView.vue'),
+          component: () => import('@/views/assets/AssetsHomeView.vue'),
           meta: {
             title: '资产目录',
             description: '按剧情类型、剧情集和剧情组织语言资产，方便持续查阅。',
+          },
+        },
+        {
+          path: 'assets/groups',
+          name: 'StoryGroups',
+          component: () => import('@/views/assets/StoryGroupsView.vue'),
+          meta: {
+            title: '剧情集',
+            description: '按剧情类型、关键词和分页浏览剧情集。',
+          },
+        },
+        {
+          path: 'assets/groups/:storyGroupId',
+          name: 'StoryGroupDetail',
+          component: () => import('@/views/assets/StoryGroupDetailView.vue'),
+          meta: {
+            title: '剧情集详情',
+            description: '查看剧情集信息和该剧情集下的剧情。',
+          },
+        },
+        {
+          path: 'stories',
+          name: 'Stories',
+          component: () => import('@/views/assets/StoriesView.vue'),
+          meta: {
+            title: '全部剧情',
+            description: '按剧情集、剧情类型、关键词和分页浏览剧情。',
+          },
+        },
+        {
+          path: 'stories/:storyId',
+          name: 'StoryDetail',
+          component: () => import('@/views/assets/StoryDetailView.vue'),
+          meta: {
+            title: '剧情详情',
+            description: '查看剧情元信息和资产归属。',
           },
         },
         {

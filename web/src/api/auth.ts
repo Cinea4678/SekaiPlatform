@@ -75,6 +75,11 @@ export function getSession() {
   return apiRequest<SessionResponseDto>('/api/auth/session').then(mapSessionResponse)
 }
 
+export function getTenants() {
+  return apiRequest<TenantMembershipDto[]>('/api/auth/tenants')
+    .then(response => response.map(mapTenant))
+}
+
 export function switchTenant(tenantId: number) {
   return apiRequest<AuthResponseDto>('/api/auth/current-tenant', {
     method: 'PUT',

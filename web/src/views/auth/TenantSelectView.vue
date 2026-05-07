@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckCircle2, Loader2 } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError } from '@/api/client'
 import Button from '@/components/ui/Button.vue'
@@ -9,11 +9,24 @@ import CardContent from '@/components/ui/CardContent.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import { useAuth } from '@/lib/auth'
+import { formatTenantRole } from '@/lib/display'
 
 const router = useRouter()
-const { state, switchTenant } = useAuth()
+const { state, refreshTenants, switchTenant } = useAuth()
 const selectedTenantId = ref(state.tenants[0]?.id)
 const error = ref<ApiError | null>(null)
+
+onMounted(async () => {
+  try {
+    await refreshTenants()
+    selectedTenantId.value = state.currentTenant?.id || state.tenants[0]?.id
+  }
+  catch (tenantError) {
+    error.value = tenantError instanceof ApiError
+      ? tenantError
+      : new ApiError(0, '租户列表加载失败，请稍后重试。')
+  }
+})
 
 async function submitTenant() {
   if (!selectedTenantId.value) {
@@ -24,7 +37,7 @@ async function submitTenant() {
 
   try {
     await switchTenant(selectedTenantId.value)
-    await router.replace('/')
+    await router.replace('/assets')
   }
   catch (switchError) {
     error.value = switchError instanceof ApiError
@@ -56,7 +69,7 @@ async function submitTenant() {
             >
               <span>
                 <span class="block font-medium">{{ tenant.name }}</span>
-                <span class="text-sm text-muted-foreground">{{ tenant.role }}</span>
+                <span class="text-sm text-muted-foreground">{{ formatTenantRole(tenant.role) }}</span>
               </span>
               <input v-model="selectedTenantId" class="sr-only" type="radio" :value="tenant.id">
               <CheckCircle2 v-if="selectedTenantId === tenant.id" :size="20" class="text-primary" />

@@ -1,6 +1,6 @@
 import type { AuthSession, SessionState, TenantMembership, TenantRole, UserProfile } from '@/api/auth'
 import { reactive, readonly } from 'vue'
-import { getSession, login, logout, switchTenant } from '@/api/auth'
+import { getSession, getTenants, login, logout, switchTenant } from '@/api/auth'
 import { ApiError, setAccessToken } from '@/api/client'
 
 interface AuthState {
@@ -34,6 +34,7 @@ export function useAuth() {
     login: loginWithPassword,
     logout: logoutSession,
     switchTenant: switchCurrentTenant,
+    refreshTenants,
     canAccessRole,
   }
 }
@@ -98,6 +99,10 @@ async function switchCurrentTenant(tenantId: number) {
   finally {
     state.loading = false
   }
+}
+
+async function refreshTenants() {
+  state.tenants = await getTenants()
 }
 
 async function logoutSession() {

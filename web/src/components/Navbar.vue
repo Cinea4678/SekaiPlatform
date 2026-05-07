@@ -3,6 +3,7 @@ import { ChevronDown, LogOut, Menu, Repeat2, Search, User } from 'lucide-vue-nex
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/lib/auth'
+import { formatTenantRole } from '@/lib/display'
 
 defineProps<{
   onToggleSidebar: () => void
@@ -16,21 +17,7 @@ const accountDropdownOpen = ref(false)
 const displayName = computed(() => state.user?.displayName || state.user?.qqId || '用户')
 const currentTenantName = computed(() => state.currentTenant?.name || '未选择租户')
 const canSwitchTenant = computed(() => state.tenants.length > 1)
-const roleLabel = computed(() => {
-  if (state.currentTenant?.role === 'super_admin') {
-    return '超级管理员'
-  }
-
-  if (state.currentTenant?.role === 'admin') {
-    return '管理员'
-  }
-
-  if (state.currentTenant?.role === 'normal') {
-    return '成员'
-  }
-
-  return '未选择角色'
-})
+const roleLabel = computed(() => formatTenantRole(state.currentTenant?.role))
 
 function handleSearch() {
   const keyword = searchQuery.value.trim()
