@@ -131,6 +131,23 @@ internal sealed class ElasticsearchSearchClient(HttpClient httpClient, IOptions<
             },
             ["sort"] = new JsonArray
             {
+                new JsonObject
+                {
+                    ["_script"] = new JsonObject
+                    {
+                        ["type"] = "number",
+                        ["order"] = "desc",
+                        ["script"] = new JsonObject
+                        {
+                            ["lang"] = "painless",
+                            ["source"] = "if (doc['asset_type'].value == 'translation') { return 1; } for (def tenantId : doc['translated_tenant_ids']) { if (tenantId == params.tenant_id) { return 1; } } return 0;",
+                            ["params"] = new JsonObject
+                            {
+                                ["tenant_id"] = request.TenantId
+                            }
+                        }
+                    }
+                },
                 new JsonObject { ["_score"] = new JsonObject { ["order"] = "desc" } },
                 new JsonObject { ["story_id"] = new JsonObject { ["order"] = "asc" } },
                 new JsonObject { ["line_no"] = new JsonObject { ["order"] = "asc" } },

@@ -90,7 +90,7 @@ Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 | 原文 | `source:{source_line_id}` | 不绑定租户 |
 | 译文 | `translation:{translation_line_id}` | 必须绑定 `tenant_id` |
 
-索引字段包含资产类型、租户 ID、剧情 ID、剧情类型、scenario ID、剧情标题、剧情集 ID、剧情集标题、翻译版本 ID、原文行 ID、行号、说话人和正文。
+索引字段包含资产类型、租户 ID、剧情 ID、剧情类型、scenario ID、剧情标题、剧情集 ID、剧情集标题、翻译版本 ID、原文行 ID、当前已有译文的租户 ID、行号、说话人和正文。
 
 分词能力：
 
@@ -103,7 +103,7 @@ Elasticsearch 统一索引名为 `sekai-language-assets-v1`。
 索引刷新规则：
 
 - 原文同步成功后刷新对应 story 的原文索引和相关译文剧情元信息。
-- 历史译文导入成功后触发 `search.translation.refresh`。
+- 历史译文导入成功后触发 `search.translation.refresh`，并刷新对应 story 的原文索引排序信号。
 - 刷新失败不回滚 PostgreSQL 结果，可通过重建接口修复。
 
 ## 鉴权

@@ -75,27 +75,64 @@ internal sealed class SearchIndexRebuilder(
             query = query.Where(item => request.StoryIds.Contains(item.story.Id));
         }
 
-        return await query
+        var sourceRows = await query
             .OrderBy(item => item.story.Id)
             .ThenBy(item => item.line.LineNo)
-            .Select(item => new SearchIndexDocument
+            .Select(item => new
             {
-                DocumentId = $"source:{item.line.Id}",
-                AssetType = SearchIndexConstants.AssetTypeSource,
-                TenantId = null,
+                LineId = item.line.Id,
+                item.line.LineNo,
+                item.line.Speaker,
+                item.line.Text,
                 StoryId = item.story.Id,
-                StoryType = item.story.StoryType,
-                ScenarioId = item.story.ScenarioId,
+                item.story.StoryType,
+                item.story.ScenarioId,
                 StoryTitle = item.story.Title,
-                StoryGroupId = item.storyGroup == null ? null : item.storyGroup.Id,
-                StoryGroupTitle = item.storyGroup == null ? null : item.storyGroup.Title,
-                TranslationVersionId = null,
-                SourceLineId = item.line.Id,
-                LineNo = item.line.LineNo,
-                Speaker = item.line.Speaker,
-                Text = item.line.Text
+                StoryGroupId = item.storyGroup == null ? null : (long?)item.storyGroup.Id,
+                StoryGroupTitle = item.storyGroup == null ? null : item.storyGroup.Title
             })
             .ToArrayAsync(cancellationToken);
+
+        var sourceLineIds = sourceRows.Select(item => item.LineId).ToArray();
+        var translationTenantRows = await (
+                from line in dbContext.TranslationLines.AsNoTracking()
+                join version in dbContext.TranslationVersions.AsNoTracking() on
+                    new { line.VersionId, line.StoryId } equals new { VersionId = version.Id, version.StoryId }
+                where sourceLineIds.Contains(line.SourceLineId)
+                    && version.DeletedAt == null
+                select new { line.SourceLineId, version.TenantId })
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        var translatedTenantIdsBySourceLine = translationTenantRows
+            .GroupBy(item => item.SourceLineId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<long>)group
+                    .Select(item => item.TenantId)
+                    .Order()
+                    .ToArray());
+
+        return sourceRows
+            .Select(item => new SearchIndexDocument
+            {
+                DocumentId = $"source:{item.LineId}",
+                AssetType = SearchIndexConstants.AssetTypeSource,
+                TenantId = null,
+                StoryId = item.StoryId,
+                StoryType = item.StoryType,
+                ScenarioId = item.ScenarioId,
+                StoryTitle = item.StoryTitle,
+                StoryGroupId = item.StoryGroupId,
+                StoryGroupTitle = item.StoryGroupTitle,
+                TranslationVersionId = null,
+                TranslatedTenantIds = translatedTenantIdsBySourceLine.GetValueOrDefault(item.LineId) ?? [],
+                SourceLineId = item.LineId,
+                LineNo = item.LineNo,
+                Speaker = item.Speaker,
+                Text = item.Text
+            })
+            .ToArray();
     }
 
     /// <summary>

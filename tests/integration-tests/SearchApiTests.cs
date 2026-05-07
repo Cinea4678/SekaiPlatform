@@ -433,8 +433,18 @@ public sealed class SearchApiTests : IDisposable
             .GetInt64());
 
         var sort = root.GetProperty("sort");
-        Assert.Equal("source_line_id", sort[4].EnumerateObject().Single().Name);
-        Assert.Equal("translation_version_id", sort[5].EnumerateObject().Single().Name);
+        var prioritySort = sort[0].GetProperty("_script");
+        Assert.Equal("desc", prioritySort.GetProperty("order").GetString());
+        Assert.Equal(tenantId, prioritySort.GetProperty("script")
+            .GetProperty("params")
+            .GetProperty("tenant_id")
+            .GetInt64());
+        Assert.Contains("translated_tenant_ids", prioritySort.GetProperty("script")
+            .GetProperty("source")
+            .GetString(), StringComparison.Ordinal);
+        Assert.Equal("_score", sort[1].EnumerateObject().Single().Name);
+        Assert.Equal("source_line_id", sort[5].EnumerateObject().Single().Name);
+        Assert.Equal("translation_version_id", sort[6].EnumerateObject().Single().Name);
     }
 
     /// <summary>

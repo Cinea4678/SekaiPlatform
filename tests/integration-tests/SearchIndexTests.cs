@@ -48,8 +48,163 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
         Assert.Equal(JsonValueKind.Null, document.GetProperty("tenant_id").ValueKind);
         Assert.Equal(seed.StoryId, document.GetProperty("story_id").GetInt64());
         Assert.Equal(seed.SourceLineId, document.GetProperty("source_line_id").GetInt64());
+        Assert.Equal([seed.TenantId], document.GetProperty("translated_tenant_ids")
+            .EnumerateArray()
+            .Select(item => item.GetInt64())
+            .ToArray());
         Assert.Equal("こんにちは", document.GetProperty("text").GetString());
         Assert.Contains(elasticsearch.BulkActionIds, id => id == $"source:{seed.SourceLineId}");
+    }
+
+    /// <summary>
+    /// Rebuilds source translation-priority metadata per source line and tenant.
+    /// </summary>
+    [Fact]
+    public async Task RebuildSource_IndexesTranslatedTenantIdsPerSourceLine()
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var primaryTenant = await dbContext.Tenants.SingleAsync(item => item.Name == IntegrationTestDatabaseFixture.TenantName);
+        var otherTenant = await dbContext.Tenants.SingleAsync(item => item.Name == IntegrationTestDatabaseFixture.SecondTenantName);
+        var creators = await dbContext.UserTenants
+            .Where(item => item.TenantId == primaryTenant.Id || item.TenantId == otherTenant.Id)
+            .GroupBy(item => item.TenantId)
+            .Select(group => new { TenantId = group.Key, UserId = group.Min(item => item.UserId) })
+            .ToDictionaryAsync(item => item.TenantId, item => item.UserId);
+        var now = DateTimeOffset.UtcNow;
+        var scenarioId = $"search_translated_tenant_ids_{Guid.NewGuid():N}";
+        var group = new StoryGroup
+        {
+            StoryType = "event_story",
+            ExternalType = "event",
+            ExternalId = scenarioId,
+            Title = "搜索译文优先剧情集",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var story = new Story
+        {
+            Group = group,
+            StoryType = "event_story",
+            ScenarioId = scenarioId,
+            Title = "搜索译文优先剧情",
+            SortOrder = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var translatedLine = new StorySourceLine
+        {
+            Story = story,
+            LineNo = 1,
+            LineType = "dialogue",
+            Text = "当前租户有译文",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var otherOnlyLine = new StorySourceLine
+        {
+            Story = story,
+            LineNo = 2,
+            LineType = "dialogue",
+            Text = "当前租户无译文",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        dbContext.StoryGroups.Add(group);
+        dbContext.StorySourceLines.AddRange(translatedLine, otherOnlyLine);
+        await dbContext.SaveChangesAsync();
+
+        var primaryVersion = new TranslationVersion
+        {
+            TenantId = primaryTenant.Id,
+            StoryId = story.Id,
+            VersionNo = 1,
+            Title = "当前租户译文",
+            CreatedBy = creators[primaryTenant.Id],
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        var deletedPrimaryVersion = new TranslationVersion
+        {
+            TenantId = primaryTenant.Id,
+            StoryId = story.Id,
+            VersionNo = 2,
+            Title = "已删除当前租户译文",
+            CreatedBy = creators[primaryTenant.Id],
+            CreatedAt = now,
+            UpdatedAt = now,
+            DeletedAt = now
+        };
+        var otherVersion = new TranslationVersion
+        {
+            TenantId = otherTenant.Id,
+            StoryId = story.Id,
+            VersionNo = 1,
+            Title = "其他租户译文",
+            CreatedBy = creators[otherTenant.Id],
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        dbContext.TranslationVersions.AddRange(primaryVersion, deletedPrimaryVersion, otherVersion);
+        await dbContext.SaveChangesAsync();
+
+        dbContext.TranslationLines.AddRange(
+            new TranslationLine
+            {
+                VersionId = primaryVersion.Id,
+                StoryId = story.Id,
+                SourceLineId = translatedLine.Id,
+                LineNo = 1,
+                Text = "有译文",
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            new TranslationLine
+            {
+                VersionId = deletedPrimaryVersion.Id,
+                StoryId = story.Id,
+                SourceLineId = otherOnlyLine.Id,
+                LineNo = 2,
+                Text = "已删除译文",
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            new TranslationLine
+            {
+                VersionId = otherVersion.Id,
+                StoryId = story.Id,
+                SourceLineId = otherOnlyLine.Id,
+                LineNo = 2,
+                Text = "其他租户译文",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        await dbContext.SaveChangesAsync();
+
+        var elasticsearch = new FakeElasticsearchHandler();
+        await using var factory = new SearchServiceFactory(fixture.ConnectionString, elasticsearch);
+        using var client = factory.CreateClient();
+
+        using var response = await PostRebuildAsync(client, new
+        {
+            scope = "source",
+            story_ids = new[] { story.Id }
+        });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        await WaitForElasticsearchAsync(elasticsearch, () => elasticsearch.IndexedDocuments.Count == 2);
+        var translatedDocument = elasticsearch.IndexedDocuments.Single(document =>
+            document.GetProperty("source_line_id").GetInt64() == translatedLine.Id);
+        Assert.Equal([primaryTenant.Id], translatedDocument.GetProperty("translated_tenant_ids")
+            .EnumerateArray()
+            .Select(item => item.GetInt64())
+            .ToArray());
+
+        var otherOnlyDocument = elasticsearch.IndexedDocuments.Single(document =>
+            document.GetProperty("source_line_id").GetInt64() == otherOnlyLine.Id);
+        Assert.Equal([otherTenant.Id], otherOnlyDocument.GetProperty("translated_tenant_ids")
+            .EnumerateArray()
+            .Select(item => item.GetInt64())
+            .ToArray());
     }
 
     /// <summary>
@@ -318,6 +473,7 @@ public sealed class SearchIndexTests(IntegrationTestDatabaseFixture fixture)
         Assert.Contains("kuromoji_tokenizer", createBody, StringComparison.Ordinal);
         Assert.Contains("smartcn", createBody, StringComparison.Ordinal);
         Assert.Contains("icu_folding", createBody, StringComparison.Ordinal);
+        Assert.Contains("translated_tenant_ids", createBody, StringComparison.Ordinal);
     }
 
     /// <summary>

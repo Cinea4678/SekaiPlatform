@@ -141,13 +141,26 @@ public sealed class ImportApiTests : IDisposable
         Assert.Contains(lines, line => line.StoryId == firstStory.StoryId && line.LineNo == 2 && line.Speaker == "翻译说话人");
         Assert.Contains(lines, line => line.Metadata != null && line.Metadata.Contains("legacy", StringComparison.Ordinal));
 
-        var body = Assert.Single(searchIndexHandler.RebuildBodies);
-        using var rebuild = JsonDocument.Parse(body);
+        Assert.Equal(2, searchIndexHandler.RebuildBodies.Count);
+        var translationBody = searchIndexHandler.RebuildBodies.Single(body =>
+            body.Contains("\"scope\":\"translation\"", StringComparison.Ordinal));
+        using var rebuild = JsonDocument.Parse(translationBody);
         Assert.Equal("translation", rebuild.RootElement.GetProperty("scope").GetString());
         Assert.Equal(login.TenantId, rebuild.RootElement.GetProperty("tenant_id").GetInt64());
         Assert.Equal(
             versionIds.Order().ToArray(),
             rebuild.RootElement.GetProperty("translation_version_ids")
+                .EnumerateArray()
+                .Select(item => item.GetInt64())
+                .Order()
+                .ToArray());
+        var sourceBody = searchIndexHandler.RebuildBodies.Single(body =>
+            body.Contains("\"scope\":\"source\"", StringComparison.Ordinal));
+        using var sourceRebuild = JsonDocument.Parse(sourceBody);
+        Assert.Equal("source", sourceRebuild.RootElement.GetProperty("scope").GetString());
+        Assert.Equal(
+            new[] { firstStory.StoryId, secondStory.StoryId }.Order().ToArray(),
+            sourceRebuild.RootElement.GetProperty("story_ids")
                 .EnumerateArray()
                 .Select(item => item.GetInt64())
                 .Order()
@@ -163,7 +176,14 @@ public sealed class ImportApiTests : IDisposable
         Assert.Equal("校对B", responseStaff.GetProperty("proofreader").GetString());
         Assert.Equal("合意C", responseStaff.GetProperty("approver").GetString());
 
-        Assert.All(searchIndexHandler.InternalTokens, token => AssertSearchIndexRefreshToken(token, login.TenantId));
+        Assert.Contains(searchIndexHandler.InternalTokens, token => MatchesSearchIndexRefreshToken(
+            token,
+            SekaiInternalAuthDefaults.SearchTranslationRefreshScope,
+            login.TenantId));
+        Assert.Contains(searchIndexHandler.InternalTokens, token => MatchesSearchIndexRefreshToken(
+            token,
+            SekaiInternalAuthDefaults.SearchIndexRebuildScope,
+            tenantId: null));
     }
 
     /// <summary>
@@ -698,17 +718,28 @@ public sealed class ImportApiTests : IDisposable
     /// <summary>
     /// Verifies that Asset Service requested a search index rebuild using its internal actor.
     /// </summary>
-    private static void AssertSearchIndexRefreshToken(string? token, long tenantId)
+    private static bool MatchesSearchIndexRefreshToken(string? token, string scope, long? tenantId)
     {
-        Assert.False(string.IsNullOrWhiteSpace(token));
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-        Assert.Equal(SekaiInternalAuthDefaults.AssetServiceActor, jwt.Claims.Single(claim =>
-            claim.Type == SekaiInternalAuthDefaults.ActorClaimType).Value);
-        Assert.Equal(SekaiInternalAuthDefaults.SearchTranslationRefreshScope, jwt.Claims.Single(claim =>
-            claim.Type == SekaiInternalAuthDefaults.ScopeClaimType).Value);
-        Assert.Equal(tenantId.ToString(), jwt.Claims.Single(claim =>
-            claim.Type == SekaiAuthDefaults.TenantIdClaimType).Value);
-        Assert.Contains(SekaiInternalAuthDefaults.SearchServiceActor, jwt.Audiences);
+        if (jwt.Claims.Single(claim => claim.Type == SekaiInternalAuthDefaults.ActorClaimType).Value
+            != SekaiInternalAuthDefaults.AssetServiceActor)
+        {
+            return false;
+        }
+
+        if (jwt.Claims.Single(claim => claim.Type == SekaiInternalAuthDefaults.ScopeClaimType).Value != scope)
+        {
+            return false;
+        }
+
+        var tokenTenantId = jwt.Claims.SingleOrDefault(claim => claim.Type == SekaiAuthDefaults.TenantIdClaimType)?.Value;
+        return tokenTenantId == tenantId?.ToString()
+            && jwt.Audiences.Contains(SekaiInternalAuthDefaults.SearchServiceActor);
     }
 
     /// <summary>

@@ -28,6 +28,7 @@ internal sealed class ElasticsearchIndexClient(HttpClient httpClient, IOptions<S
             cancellationToken);
         if (head.IsSuccessStatusCode)
         {
+            await EnsureTranslatedTenantIdsMappingAsync(cancellationToken);
             return;
         }
 
@@ -113,6 +114,28 @@ internal sealed class ElasticsearchIndexClient(HttpClient httpClient, IOptions<S
     }
 
     /// <summary>
+    /// Adds source-line translation priority metadata to existing strict mappings.
+    /// </summary>
+    private async Task EnsureTranslatedTenantIdsMappingAsync(CancellationToken cancellationToken)
+    {
+        var body = new JsonObject
+        {
+            ["properties"] = new JsonObject
+            {
+                ["translated_tenant_ids"] = Long()
+            }
+        };
+        using var response = await httpClient.PutAsync(
+            $"{options.IndexName}/_mapping",
+            JsonContent(body),
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowElasticsearchErrorAsync(response, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Builds the index settings and mapping required by the language asset index.
     /// </summary>
     private static JsonObject CreateIndexBody()
@@ -154,6 +177,7 @@ internal sealed class ElasticsearchIndexClient(HttpClient httpClient, IOptions<S
                     ["story_group_id"] = Long(),
                     ["story_group_title"] = TextWithLanguageFields(),
                     ["translation_version_id"] = Long(),
+                    ["translated_tenant_ids"] = Long(),
                     ["source_line_id"] = Long(),
                     ["line_no"] = new JsonObject { ["type"] = "integer" },
                     ["speaker"] = TextWithLanguageFields(),

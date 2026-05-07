@@ -68,6 +68,12 @@ internal sealed record SearchIndexDocument
     public long? TranslationVersionId { get; init; }
 
     /// <summary>
+    /// Gets tenant identifiers that have active translations for this source line.
+    /// </summary>
+    [JsonPropertyName("translated_tenant_ids")]
+    public IReadOnlyList<long> TranslatedTenantIds { get; init; } = [];
+
+    /// <summary>
     /// Gets the source line identifier used for story detail navigation.
     /// </summary>
     [JsonPropertyName("source_line_id")]
