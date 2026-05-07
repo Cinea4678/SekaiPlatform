@@ -23,7 +23,7 @@ const description = computed(() => route.meta.description || '该能力正在准
         {{ description }}
       </p>
       <p class="mt-4 text-xs text-muted-foreground">
-        当前登录和租户权限已生效，完整操作能力开放后会自动沿用当前身份。
+        当前登录和权限已生效，完整操作能力开放后会自动沿用当前身份。
       </p>
     </CardContent>
   </Card>

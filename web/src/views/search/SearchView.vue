@@ -141,7 +141,7 @@ function getVersionLabel(hit: SearchHit) {
       <div class="mt-4 space-y-5">
         <div>
           <h1 class="text-2xl font-semibold tracking-normal">
-            搜索原文和当前租户译文
+            搜索原文和译文
           </h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
             如果不确定怎么翻译的话，不妨搜索一下之前的翻译吧。
@@ -244,7 +244,7 @@ function getVersionLabel(hit: SearchHit) {
             </div>
             <div class="rounded-md border bg-background p-3">
               <p class="mb-2 text-xs font-medium text-muted-foreground">
-                当前租户译文
+                已导入译文
               </p>
               <div v-if="hit.translations.length" class="space-y-3">
                 <div v-for="translation in hit.translations.slice(0, 2)" :key="translation.translationLineId">
@@ -260,7 +260,7 @@ function getVersionLabel(hit: SearchHit) {
                 </div>
               </div>
               <p v-else class="text-sm text-muted-foreground">
-                当前租户暂无对应译文。
+                暂无对应译文。
               </p>
             </div>
           </div>

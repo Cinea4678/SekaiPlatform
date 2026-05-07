@@ -113,7 +113,7 @@ const router = createRouter({
           component: () => import('@/views/PlaceholderView.vue'),
           meta: {
             title: '历史译文导入',
-            description: '导入历史 JSON 译文，沉淀为当前租户下的新翻译版本。',
+            description: '导入历史 JSON 译文，沉淀为新的翻译版本。',
           },
         },
         {

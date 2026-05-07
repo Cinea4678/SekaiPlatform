@@ -57,7 +57,7 @@ function submitKeyword() {
   <div class="space-y-6">
     <section class="rounded-lg border bg-card p-6">
       <p class="text-sm text-muted-foreground">
-        {{ state.currentTenant?.name }} · 资产目录
+        资产目录
       </p>
       <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-end">
         <div>
@@ -130,7 +130,7 @@ function submitKeyword() {
             </CardHeader>
             <CardContent>
               <p class="text-sm leading-6 text-muted-foreground">
-                查看当前租户已导入译文版本的剧情。
+                查看已导入译文版本的剧情。
               </p>
             </CardContent>
           </Card>

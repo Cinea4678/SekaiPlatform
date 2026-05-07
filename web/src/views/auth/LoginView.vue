@@ -52,7 +52,7 @@ async function submitLogin() {
             字幕组语言资产工作台
           </p>
           <p class="max-w-lg text-sm leading-6 text-muted-foreground">
-            登录后可访问当前租户的剧情资产、译文版本、导入入口和管理能力。
+            登录后可访问剧情资产、译文版本、导入入口和管理能力。
           </p>
           <p class="rounded-md border bg-background p-4 text-xs text-muted-foreground">
             当前连接由开发服务器代理或部署环境统一转发，登录 Cookie 按同源方式保存。

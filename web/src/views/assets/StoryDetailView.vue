@@ -289,7 +289,7 @@ function getLineClass(lineType: string) {
               <EmptyState
                 v-if="translationVersions.length === 0"
                 title="暂无译文版本"
-                description="当前租户还没有为该剧情导入译文。"
+                description="还没有为该剧情导入译文。"
               />
               <div v-else class="space-y-2">
                 <button

@@ -24,7 +24,7 @@ onMounted(async () => {
   catch (tenantError) {
     error.value = tenantError instanceof ApiError
       ? tenantError
-      : new ApiError(0, '租户列表加载失败，请稍后重试。')
+      : new ApiError(0, '工作区列表加载失败，请稍后重试。')
   }
 })
 
@@ -42,7 +42,7 @@ async function submitTenant() {
   catch (switchError) {
     error.value = switchError instanceof ApiError
       ? switchError
-      : new ApiError(0, '切换租户失败，请稍后重试。')
+      : new ApiError(0, '切换工作区失败，请稍后重试。')
   }
 }
 </script>
@@ -52,10 +52,10 @@ async function submitTenant() {
     <Card class="w-full max-w-2xl">
       <CardHeader>
         <CardTitle class="text-xl">
-          选择当前租户
+          选择工作区
         </CardTitle>
         <p class="text-sm text-muted-foreground">
-          业务接口会使用登录态中的当前租户，不需要在页面请求里传入租户 ID。
+          选择后即可进入对应的语言资产工作台。
         </p>
       </CardHeader>
       <CardContent>

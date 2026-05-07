@@ -10,7 +10,6 @@ import CardContent from '@/components/ui/CardContent.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import { useAuth } from '@/lib/auth'
-import { formatTenantRole } from '@/lib/display'
 import { getRecentAssets } from '@/lib/recentAssets'
 
 interface WorkspaceEntry {
@@ -26,11 +25,10 @@ const { state, canAccessRole } = useAuth()
 const searchKeyword = ref('')
 
 const displayName = computed(() => state.user?.displayName || state.user?.qqId || '用户')
-const roleLabel = computed(() => formatTenantRole(state.currentTenant?.role))
 const recentAssets = computed(() => getRecentAssets(state.currentTenant?.id))
 
 const entries: WorkspaceEntry[] = [
-  { title: '统一搜索', description: '搜索原文和当前租户译文。', to: '/search', icon: Search },
+  { title: '统一搜索', description: '搜索原文和已导入译文。', to: '/search', icon: Search },
   { title: '资产目录', description: '浏览剧情类型、剧情集和剧情。', to: '/assets', icon: FolderOpen },
   { title: '历史译文导入', description: '导入 JSON 译文版本。', to: '/import/translations', icon: FileUp },
   { title: '管理入口', description: '用户邀请、同步任务和索引维护。', to: '/admin/users', icon: ShieldCheck, roles: ['admin', 'super_admin'] },
@@ -55,13 +53,13 @@ function submitSearch() {
       <div class="grid gap-5 lg:grid-cols-[1fr_380px] lg:items-end">
         <div>
           <p class="text-sm text-muted-foreground">
-            {{ state.currentTenant?.name }} · {{ roleLabel }}
+            语言资产工作台
           </p>
           <h1 class="mt-2 text-2xl font-semibold tracking-normal">
             {{ displayName }}，欢迎回到语言资产工作台
           </h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            在这里检索剧情文本、浏览资产目录、导入历史译文，并按权限管理租户成员和运维任务。
+            在这里检索剧情文本、浏览资产目录、导入历史译文，并按权限管理成员和运维任务。
           </p>
         </div>
         <form class="flex gap-2" @submit.prevent="submitSearch">

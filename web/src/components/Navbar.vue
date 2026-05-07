@@ -3,7 +3,6 @@ import { ChevronDown, LogOut, Menu, Repeat2, Search, User } from 'lucide-vue-nex
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/lib/auth'
-import { formatTenantRole } from '@/lib/display'
 
 defineProps<{
   onToggleSidebar: () => void
@@ -16,9 +15,7 @@ const searchQuery = ref('')
 const accountDropdownOpen = ref(false)
 
 const displayName = computed(() => state.user?.displayName || state.user?.qqId || '用户')
-const currentTenantName = computed(() => state.currentTenant?.name || '未选择租户')
 const canSwitchTenant = computed(() => state.tenants.length > 1)
-const roleLabel = computed(() => formatTenantRole(state.currentTenant?.role))
 const showGlobalSearch = computed(() => route.path !== '/search')
 
 function handleSearch() {
@@ -87,7 +84,7 @@ async function handleLogout() {
             </div>
             <span class="hidden text-left sm:block">
               <span class="block text-sm font-medium">{{ displayName }}</span>
-              <span class="block max-w-44 truncate text-xs text-muted-foreground">{{ currentTenantName }}</span>
+              <span class="block max-w-44 truncate text-xs text-muted-foreground">QQ：{{ state.user?.qqId || '未设置' }}</span>
             </span>
             <ChevronDown :size="16" class="hidden sm:block" />
           </button>
@@ -117,9 +114,6 @@ async function handleLogout() {
                 <p class="text-xs text-muted-foreground">
                   QQ：{{ state.user?.qqId || '未设置' }}
                 </p>
-                <p class="mt-2 text-xs text-muted-foreground">
-                  {{ currentTenantName }} · {{ roleLabel }}
-                </p>
               </div>
 
               <button
@@ -128,7 +122,7 @@ async function handleLogout() {
                 @click="navigateToTenantSelect"
               >
                 <Repeat2 :size="16" />
-                <span>切换租户</span>
+                <span>切换工作区</span>
               </button>
 
               <button
