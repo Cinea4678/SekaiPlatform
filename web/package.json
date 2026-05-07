@@ -1,0 +1,39 @@
+{
+  "name": "material-dashboard-shadcn-vue",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.1.1",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5000",
+    "build": "vue-tsc -b && vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "serve": "node server.js"
+  },
+  "dependencies": {
+    "@vueuse/core": "^14.3.0",
+    "chart.js": "^4.5.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^1.0.0",
+    "radix-vue": "^1.9.17",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss-animate": "^1.0.7",
+    "vue": "^3.5.34",
+    "vue-chartjs": "^5.3.3",
+    "vue-router": "^5.0.6"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^8.2.0",
+    "@tailwindcss/vite": "^4.2.4",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "eslint": "^10.3.0",
+    "express": "^5.2.1",
+    "tailwindcss": "^4.2.4",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.11",
+    "vue-tsc": "^3.2.8"
+  }
+}
