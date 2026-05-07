@@ -28,6 +28,7 @@ const results = ref<SearchHit[]>([])
 const page = ref({ page: 1, pageSize: defaultPageSize, total: 0 })
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
+const recommendedKeywords = ['芸術祭', '監督', '昇降口', '初売り']
 const hasSearched = computed(() => !!readQueryString(route.query.keyword))
 const storyTypeLabel = computed(() => createStoryTypeLabeler(storyTypes.value))
 
@@ -91,6 +92,14 @@ function changePage(nextPage: number) {
   })
 }
 
+function searchRecommendedKeyword(text: string) {
+  keyword.value = text
+  router.push({
+    path: '/search',
+    query: { keyword: text, page: '1', page_size: String(defaultPageSize) },
+  })
+}
+
 function getResultTarget(hit: SearchHit) {
   return {
     path: `/stories/${hit.storyId}`,
@@ -129,34 +138,50 @@ function getVersionLabel(hit: SearchHit) {
       <p class="text-sm text-muted-foreground">
         统一搜索
       </p>
-      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_440px] lg:items-end">
+      <div class="mt-4 space-y-5">
         <div>
           <h1 class="text-2xl font-semibold tracking-normal">
             搜索原文和当前租户译文
           </h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            结果按剧情行展示，可直接跳转到阅读页并定位到对应行。
+            如果不确定怎么翻译的话，不妨搜索一下之前的翻译吧。
           </p>
         </div>
-        <form class="flex gap-2" @submit.prevent="submitSearch">
-          <div class="relative min-w-0 flex-1">
-            <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              v-model="keyword"
-              class="w-full rounded-md border bg-background py-2 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              placeholder="输入关键词"
-              type="search"
+        <div class="max-w-3xl space-y-3">
+          <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="submitSearch">
+            <div class="relative min-w-0 flex-1">
+              <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                v-model="keyword"
+                class="w-full rounded-md border bg-background py-2 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                placeholder="输入关键词"
+                type="search"
+              >
+            </div>
+            <Button>搜索</Button>
+          </form>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-muted-foreground">随便试试</span>
+            <Button
+              v-for="item in recommendedKeywords"
+              :key="item"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-8"
+              @click="searchRecommendedKeyword(item)"
             >
+              {{ item }}
+            </Button>
           </div>
-          <Button>搜索</Button>
-        </form>
+        </div>
       </div>
     </section>
 
     <EmptyState
       v-if="!hasSearched"
       title="输入关键词开始搜索"
-      description="可以搜索共享原文和当前租户已导入的译文。"
+      description="如果不确定怎么翻译的话，不妨搜索一下之前的翻译吧。"
     />
     <LoadingState v-else-if="loading" label="搜索中" />
     <ErrorState v-else-if="error" :error="error" @retry="loadPage" />

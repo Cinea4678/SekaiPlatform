@@ -50,7 +50,7 @@ const router = createRouter({
           component: () => import('@/views/search/SearchView.vue'),
           meta: {
             title: '统一搜索',
-            description: '集中检索共享原文和当前租户译文，帮助成员快速定位剧情行。',
+            description: '如果不确定怎么翻译的话，不妨搜索一下之前的翻译吧。',
           },
         },
         {

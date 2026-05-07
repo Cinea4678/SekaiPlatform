@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, LogOut, Menu, Repeat2, Search, User } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/lib/auth'
 import { formatTenantRole } from '@/lib/display'
 
@@ -9,6 +9,7 @@ defineProps<{
   onToggleSidebar: () => void
 }>()
 
+const route = useRoute()
 const router = useRouter()
 const { state, logout } = useAuth()
 const searchQuery = ref('')
@@ -18,6 +19,7 @@ const displayName = computed(() => state.user?.displayName || state.user?.qqId |
 const currentTenantName = computed(() => state.currentTenant?.name || '未选择租户')
 const canSwitchTenant = computed(() => state.tenants.length > 1)
 const roleLabel = computed(() => formatTenantRole(state.currentTenant?.role))
+const showGlobalSearch = computed(() => route.path !== '/search')
 
 function handleSearch() {
   const keyword = searchQuery.value.trim()
@@ -61,7 +63,7 @@ async function handleLogout() {
             <Menu :size="20" />
           </button>
 
-          <form class="hidden max-w-xl flex-1 md:block" @submit.prevent="handleSearch">
+          <form v-if="showGlobalSearch" class="hidden max-w-xl flex-1 md:block" @submit.prevent="handleSearch">
             <div class="relative">
               <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -141,7 +143,7 @@ async function handleLogout() {
         </div>
       </div>
 
-      <div class="pb-3 md:hidden">
+      <div v-if="showGlobalSearch" class="pb-3 md:hidden">
         <form @submit.prevent="handleSearch">
           <div class="relative">
             <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
