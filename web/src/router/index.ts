@@ -1,65 +1,139 @@
+import type { TenantRole } from '@/api/auth'
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import { bootstrapSession, useAuth } from '@/lib/auth'
+
+interface RouteAccessMeta {
+  title?: string
+  description?: string
+  requiresAuth?: boolean
+  requiresTenant?: boolean
+  roles?: TenantRole[]
+}
+
+declare module 'vue-router' {
+  interface RouteMeta extends RouteAccessMeta {}
+}
 
 const router = createRouter({
-  history: createWebHistory('/material-dashboard-shadcn-vue/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/auth/LoginView.vue'),
+    },
+    {
+      path: '/tenant/select',
+      name: 'TenantSelect',
+      component: () => import('@/views/auth/TenantSelectView.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
     {
       path: '/',
       component: MainLayout,
+      meta: {
+        requiresAuth: true,
+        requiresTenant: true,
+      },
       children: [
         {
           path: '',
-          redirect: '/dashboard',
+          name: 'Workspace',
+          component: () => import('@/views/WorkspaceView.vue'),
         },
         {
-          path: 'dashboard',
-          name: 'Dashboard',
-          component: () => import('@/views/Dashboard.vue'),
+          path: 'search',
+          name: 'Search',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '统一搜索',
+            description: '集中检索共享原文和当前租户译文，帮助成员快速定位剧情行。',
+          },
         },
         {
-          path: 'contacts',
-          name: 'Contacts',
-          component: () => import('@/views/Contacts.vue'),
+          path: 'assets',
+          name: 'Assets',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '资产目录',
+            description: '按剧情类型、剧情集和剧情组织语言资产，方便持续查阅。',
+          },
         },
         {
-          path: 'companies',
-          name: 'Companies',
-          component: () => import('@/views/Companies.vue'),
+          path: 'import/translations',
+          name: 'ImportTranslations',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '历史译文导入',
+            description: '导入历史 JSON 译文，沉淀为当前租户下的新翻译版本。',
+          },
         },
         {
-          path: 'deals',
-          name: 'Deals',
-          component: () => import('@/views/Deals.vue'),
+          path: 'admin/users',
+          name: 'AdminUsers',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '租户用户',
+            description: '邀请成员加入当前租户，并按职责授予访问权限。',
+            roles: ['admin', 'super_admin'],
+          },
         },
         {
-          path: 'tasks',
-          name: 'Tasks',
-          component: () => import('@/views/Tasks.vue'),
+          path: 'admin/sync',
+          name: 'AdminSync',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '同步任务',
+            description: '触发外部原文同步，并跟踪同步任务的执行状态。',
+            roles: ['admin', 'super_admin'],
+          },
         },
         {
-          path: 'reports',
-          name: 'Reports',
-          component: () => import('@/views/Reports.vue'),
-        },
-        {
-          path: 'billing',
-          name: 'Billing',
-          component: () => import('@/views/Billing.vue'),
-        },
-        {
-          path: 'settings',
-          name: 'Settings',
-          component: () => import('@/views/Settings.vue'),
-        },
-        {
-          path: 'docs',
-          name: 'Docs',
-          component: () => import('@/views/Docs.vue'),
+          path: 'admin/search-index',
+          name: 'AdminSearchIndex',
+          component: () => import('@/views/PlaceholderView.vue'),
+          meta: {
+            title: '搜索索引维护',
+            description: '维护搜索索引，让最新原文和译文可被稳定检索。',
+            roles: ['super_admin'],
+          },
         },
       ],
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  const { state, canAccessRole } = useAuth()
+  await bootstrapSession()
+
+  if (to.name === 'Login') {
+    if (!state.user) {
+      return true
+    }
+
+    return state.currentTenant ? '/' : '/tenant/select'
+  }
+
+  if (to.meta.requiresAuth && !state.user) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
+  }
+
+  if (to.meta.requiresTenant && !state.currentTenant) {
+    return '/tenant/select'
+  }
+
+  if (!canAccessRole(state.currentTenant?.role, to.meta.roles)) {
+    return '/'
+  }
+
+  return true
 })
 
 export default router

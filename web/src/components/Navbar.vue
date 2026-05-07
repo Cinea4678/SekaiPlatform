@@ -1,19 +1,44 @@
 <script setup lang="ts">
-import { ChevronDown, CreditCard, LogOut, Menu, Search, User } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { ChevronDown, LogOut, Menu, Repeat2, Search, User } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/lib/auth'
 
 defineProps<{
   onToggleSidebar: () => void
 }>()
 
 const router = useRouter()
+const { state, logout } = useAuth()
 const searchQuery = ref('')
 const accountDropdownOpen = ref(false)
 
-function handleSearch(e: Event) {
-  e.preventDefault()
-  console.warn('Search:', searchQuery.value)
+const displayName = computed(() => state.user?.displayName || state.user?.qqId || '用户')
+const currentTenantName = computed(() => state.currentTenant?.name || '未选择租户')
+const canSwitchTenant = computed(() => state.tenants.length > 1)
+const roleLabel = computed(() => {
+  if (state.currentTenant?.role === 'super_admin') {
+    return '超级管理员'
+  }
+
+  if (state.currentTenant?.role === 'admin') {
+    return '管理员'
+  }
+
+  if (state.currentTenant?.role === 'normal') {
+    return '成员'
+  }
+
+  return '未选择角色'
+})
+
+function handleSearch() {
+  const keyword = searchQuery.value.trim()
+  if (!keyword) {
+    return
+  }
+
+  router.push({ path: '/search', query: { keyword } })
 }
 
 function toggleAccountDropdown() {
@@ -24,122 +49,120 @@ function closeAccountDropdown() {
   accountDropdownOpen.value = false
 }
 
-function navigateToBilling() {
-  router.push('/billing')
+async function navigateToTenantSelect() {
   closeAccountDropdown()
+  await router.push('/tenant/select')
 }
 
-function handleLogout() {
-  console.warn('Logout clicked')
+async function handleLogout() {
+  await logout()
   closeAccountDropdown()
+  await router.replace('/login')
 }
 </script>
 
 <template>
-  <nav class="bg-card border-b sticky top-0 z-40">
+  <nav class="sticky top-0 z-40 border-b bg-card">
     <div class="px-4 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <div class="flex items-center gap-4">
+      <div class="flex h-16 items-center justify-between gap-4">
+        <div class="flex min-w-0 flex-1 items-center gap-4">
           <button
-            class="lg:hidden p-2 hover:bg-accent rounded-md"
+            class="rounded-md p-2 hover:bg-accent lg:hidden"
             aria-label="Toggle menu"
             @click="onToggleSidebar"
           >
             <Menu :size="20" />
           </button>
 
-          <form class="hidden md:block" @submit="handleSearch">
+          <form class="hidden max-w-xl flex-1 md:block" @submit.prevent="handleSearch">
             <div class="relative">
               <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 v-model="searchQuery"
                 type="search"
-                placeholder="Search..."
-                class="pl-10 pr-4 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary w-64 lg:w-96"
+                placeholder="搜索剧情原文或译文"
+                class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
             </div>
           </form>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="relative">
           <button
-            class="hidden lg:block p-2 hover:bg-accent rounded-md"
-            aria-label="Toggle sidebar"
-            @click="onToggleSidebar"
+            class="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-accent"
+            aria-label="Account menu"
+            @click="toggleAccountDropdown"
           >
-            <Menu :size="20" />
+            <div class="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <User :size="18" />
+            </div>
+            <span class="hidden text-left sm:block">
+              <span class="block text-sm font-medium">{{ displayName }}</span>
+              <span class="block max-w-44 truncate text-xs text-muted-foreground">{{ currentTenantName }}</span>
+            </span>
+            <ChevronDown :size="16" class="hidden sm:block" />
           </button>
 
-          <div class="relative">
-            <button
-              class="flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md"
-              aria-label="Account menu"
-              @click="toggleAccountDropdown"
-            >
-              <div class="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                <User :size="18" />
-              </div>
-              <span class="hidden sm:block text-sm font-medium">Account</span>
-              <ChevronDown :size="16" class="hidden sm:block" />
-            </button>
+          <div
+            v-if="accountDropdownOpen"
+            class="fixed inset-0 z-40"
+            @click="closeAccountDropdown"
+          />
 
+          <transition
+            enter-active-class="transition ease-out duration-100"
+            enter-from-class="scale-95 opacity-0"
+            enter-to-class="scale-100 opacity-100"
+            leave-active-class="transition ease-in duration-75"
+            leave-from-class="scale-100 opacity-100"
+            leave-to-class="scale-95 opacity-0"
+          >
             <div
               v-if="accountDropdownOpen"
-              class="fixed inset-0 z-40"
-              @click="closeAccountDropdown"
-            />
-
-            <transition
-              enter-active-class="transition ease-out duration-100"
-              enter-from-class="transform opacity-0 scale-95"
-              enter-to-class="transform opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-75"
-              leave-from-class="transform opacity-100 scale-100"
-              leave-to-class="transform opacity-0 scale-95"
+              class="absolute right-0 z-50 mt-2 w-72 rounded-md border bg-card py-1 shadow-lg"
             >
-              <div
-                v-if="accountDropdownOpen"
-                class="absolute right-0 mt-2 w-56 bg-card border rounded-md shadow-lg py-1 z-50"
-              >
-                <div class="px-4 py-3 border-b">
-                  <p class="text-sm font-medium">
-                    John Doe
-                  </p>
-                  <p class="text-xs text-muted-foreground">
-                    john@example.com
-                  </p>
-                </div>
-
-                <button
-                  class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
-                  @click="navigateToBilling"
-                >
-                  <CreditCard :size="16" />
-                  <span>Billing</span>
-                </button>
-
-                <button
-                  class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent text-red-600"
-                  @click="handleLogout"
-                >
-                  <LogOut :size="16" />
-                  <span>Logout</span>
-                </button>
+              <div class="border-b px-4 py-3">
+                <p class="text-sm font-medium">
+                  {{ displayName }}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                  QQ：{{ state.user?.qqId || '未设置' }}
+                </p>
+                <p class="mt-2 text-xs text-muted-foreground">
+                  {{ currentTenantName }} · {{ roleLabel }}
+                </p>
               </div>
-            </transition>
-          </div>
+
+              <button
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!canSwitchTenant"
+                @click="navigateToTenantSelect"
+              >
+                <Repeat2 :size="16" />
+                <span>切换租户</span>
+              </button>
+
+              <button
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
+                @click="handleLogout"
+              >
+                <LogOut :size="16" />
+                <span>登出</span>
+              </button>
+            </div>
+          </transition>
         </div>
       </div>
 
-      <div class="md:hidden pb-3">
-        <form @submit="handleSearch">
+      <div class="pb-3 md:hidden">
+        <form @submit.prevent="handleSearch">
           <div class="relative">
             <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               v-model="searchQuery"
               type="search"
-              placeholder="Search..."
-              class="w-full pl-10 pr-4 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="搜索剧情原文或译文"
+              class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
           </div>
         </form>
