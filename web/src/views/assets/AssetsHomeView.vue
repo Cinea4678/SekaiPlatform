@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { StoryTypeInfo } from '@/api/assets'
-import { BookOpen, FolderOpen, Search } from 'lucide-vue-next'
+import { BookOpen, FolderOpen, Languages, Search } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getStoryTypes } from '@/api/assets'
@@ -87,7 +87,7 @@ function submitKeyword() {
     <ErrorState v-else-if="error" :error="error" @retry="loadStoryTypes" />
 
     <template v-else>
-      <section class="grid gap-4 md:grid-cols-2">
+      <section class="grid gap-4 md:grid-cols-3">
         <RouterLink to="/assets/groups?page=1&page_size=20">
           <Card class="h-full transition hover:border-primary/60 hover:shadow-sm">
             <CardHeader>
@@ -115,6 +115,22 @@ function submitKeyword() {
             <CardContent>
               <p class="text-sm leading-6 text-muted-foreground">
                 直接按标题、剧情编号和类型查找具体剧情。
+              </p>
+            </CardContent>
+          </Card>
+        </RouterLink>
+
+        <RouterLink to="/stories?has_translation=true&page=1&page_size=20">
+          <Card class="h-full transition hover:border-primary/60 hover:shadow-sm">
+            <CardHeader>
+              <Languages :size="22" class="text-primary" />
+              <CardTitle class="text-base">
+                有译文剧情
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-sm leading-6 text-muted-foreground">
+                查看当前租户已导入译文版本的剧情。
               </p>
             </CardContent>
           </Card>

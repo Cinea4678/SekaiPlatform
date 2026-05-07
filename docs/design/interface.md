@@ -117,12 +117,14 @@ http://localhost:8080
 | 接口 | 过滤 |
 |---|---|
 | `/api/story-groups` | `story_type`、`keyword` |
-| `/api/stories` | `story_group_id`、`story_type`、`keyword` |
+| `/api/stories` | `story_group_id`、`story_type`、`keyword`、`has_translation` |
 | `/api/stories/{storyId}/translation-versions` | 当前租户 |
 | `/api/translation-versions/{translationVersionId}` | 当前租户 |
 | `/api/translation-versions/{translationVersionId}/lines` | 当前租户 |
 
 跨租户翻译版本和翻译行返回 404。
+
+`/api/stories` 的 `has_translation` 为可选布尔值。`true` 只返回当前租户存在未删除翻译版本的剧情，`false` 只返回当前租户不存在未删除翻译版本的剧情；不传时不过滤。
 
 ## 搜索
 

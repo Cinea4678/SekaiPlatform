@@ -25,6 +25,7 @@ const error = ref<ApiError | null>(null)
 const keyword = ref('')
 const storyType = ref('')
 const storyGroupId = ref('')
+const translationState = ref('')
 const storyTypeLabel = computed(() => createStoryTypeLabeler(storyTypes.value))
 
 onMounted(loadPage)
@@ -36,6 +37,7 @@ async function loadPage() {
   keyword.value = readQueryString(route.query.keyword)
   storyType.value = readQueryString(route.query.story_type)
   storyGroupId.value = readQueryString(route.query.story_group_id)
+  translationState.value = readQueryString(route.query.has_translation)
 
   try {
     const page = readQueryNumber(route.query.page, 1)
@@ -45,6 +47,7 @@ async function loadPage() {
       getStories({
         storyType: storyType.value || undefined,
         storyGroupId: storyGroupId.value ? Number(storyGroupId.value) : undefined,
+        hasTranslation: readTranslationState(),
         keyword: keyword.value || undefined,
         page,
         pageSize,
@@ -69,6 +72,7 @@ function submitFilters() {
     query: {
       ...(storyType.value ? { story_type: storyType.value } : {}),
       ...(storyGroupId.value ? { story_group_id: storyGroupId.value } : {}),
+      ...(translationState.value ? { has_translation: translationState.value } : {}),
       ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
       page: '1',
       page_size: String(defaultPageSize),
@@ -85,6 +89,18 @@ function changePage(page: number) {
       page_size: String(stories.value?.page.pageSize || defaultPageSize),
     },
   })
+}
+
+function readTranslationState() {
+  if (translationState.value === 'true') {
+    return true
+  }
+
+  if (translationState.value === 'false') {
+    return false
+  }
+
+  return undefined
 }
 </script>
 
@@ -103,13 +119,24 @@ function changePage(page: number) {
       </h1>
     </div>
 
-    <form class="grid gap-3 rounded-lg border bg-card p-4 lg:grid-cols-[220px_180px_1fr_auto]" @submit.prevent="submitFilters">
+    <form class="grid gap-3 rounded-lg border bg-card p-4 lg:grid-cols-[200px_180px_180px_1fr_auto]" @submit.prevent="submitFilters">
       <select v-model="storyType" class="rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring">
         <option value="">
           全部类型
         </option>
         <option v-for="item in storyTypes" :key="item.value" :value="item.value">
           {{ item.label }}
+        </option>
+      </select>
+      <select v-model="translationState" class="rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring">
+        <option value="">
+          全部译文状态
+        </option>
+        <option value="true">
+          有译文
+        </option>
+        <option value="false">
+          无译文
         </option>
       </select>
       <input

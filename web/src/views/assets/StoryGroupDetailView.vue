@@ -16,7 +16,7 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import { useAuth } from '@/lib/auth'
 import { createStoryTypeLabeler, formatDateTime } from '@/lib/display'
-import { defaultPageSize, readQueryNumber } from '@/lib/query'
+import { defaultPageSize, readQueryNumber, readQueryString } from '@/lib/query'
 import { recordRecentStoryGroup } from '@/lib/recentAssets'
 
 const route = useRoute()
@@ -27,6 +27,7 @@ const group = ref<StoryGroup | null>(null)
 const stories = ref<PagedResponse<Story> | null>(null)
 const loading = ref(true)
 const error = ref<ApiError | null>(null)
+const translationState = ref('')
 const storyGroupId = computed(() => Number(route.params.storyGroupId))
 const storyTypeLabel = computed(() => createStoryTypeLabeler(storyTypes.value))
 
@@ -36,6 +37,7 @@ watch(() => route.fullPath, loadPage)
 async function loadPage() {
   loading.value = true
   error.value = null
+  translationState.value = readQueryString(route.query.has_translation)
 
   try {
     const page = readQueryNumber(route.query.page, 1)
@@ -43,7 +45,12 @@ async function loadPage() {
     const [types, groupDetail, storyPage] = await Promise.all([
       storyTypes.value.length ? Promise.resolve(storyTypes.value) : getStoryTypes(),
       getStoryGroup(storyGroupId.value),
-      getStories({ storyGroupId: storyGroupId.value, page, pageSize }),
+      getStories({
+        storyGroupId: storyGroupId.value,
+        hasTranslation: readTranslationState(),
+        page,
+        pageSize,
+      }),
     ])
     storyTypes.value = types
     group.value = groupDetail
@@ -66,8 +73,32 @@ function changePage(page: number) {
     query: {
       page: String(page),
       page_size: String(stories.value?.page.pageSize || defaultPageSize),
+      ...(translationState.value ? { has_translation: translationState.value } : {}),
     },
   })
+}
+
+function changeTranslationState() {
+  router.push({
+    path: `/assets/groups/${storyGroupId.value}`,
+    query: {
+      ...(translationState.value ? { has_translation: translationState.value } : {}),
+      page: '1',
+      page_size: String(defaultPageSize),
+    },
+  })
+}
+
+function readTranslationState() {
+  if (translationState.value === 'true') {
+    return true
+  }
+
+  if (translationState.value === 'false') {
+    return false
+  }
+
+  return undefined
 }
 </script>
 
@@ -142,12 +173,29 @@ function changePage(page: number) {
           <h2 class="text-base font-semibold">
             剧情列表
           </h2>
-          <RouterLink
-            class="text-sm text-primary hover:underline"
-            :to="{ path: '/stories', query: { story_group_id: group.id, page: '1', page_size: '20' } }"
-          >
-            打开全局列表
-          </RouterLink>
+          <div class="flex items-center gap-3">
+            <select
+              v-model="translationState"
+              class="rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              @change="changeTranslationState"
+            >
+              <option value="">
+                全部译文状态
+              </option>
+              <option value="true">
+                有译文
+              </option>
+              <option value="false">
+                无译文
+              </option>
+            </select>
+            <RouterLink
+              class="text-sm text-primary hover:underline"
+              :to="{ path: '/stories', query: { story_group_id: group.id, ...(translationState ? { has_translation: translationState } : {}), page: '1', page_size: '20' } }"
+            >
+              打开全局列表
+            </RouterLink>
+          </div>
         </div>
         <EmptyState
           v-if="stories.items.length === 0"

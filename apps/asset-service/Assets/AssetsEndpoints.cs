@@ -155,6 +155,11 @@ internal static class AssetsEndpoints
                 return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "剧情集 ID 无效。");
             }
 
+            if (!TryReadOptionalBoolean(httpContext, "has_translation", out var hasTranslation))
+            {
+                return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "翻译状态参数无效。");
+            }
+
             if (!TryReadPagination(httpContext, out var paging))
             {
                 return AssetsEndpointResults.Error(contextAccessor, StatusCodes.Status400BadRequest, "分页参数无效。");
@@ -180,6 +185,20 @@ internal static class AssetsEndpoints
                 query = query.Where(story =>
                     story.Title.Contains(normalizedKeyword)
                     || story.ScenarioId.Contains(normalizedKeyword));
+            }
+
+            if (hasTranslation is not null)
+            {
+                var tenantId = contextAccessor.GetCurrent().TenantId!.Value;
+                query = hasTranslation.Value
+                    ? query.Where(story => dbContext.TranslationVersions.Any(version =>
+                        version.TenantId == tenantId
+                        && version.StoryId == story.Id
+                        && version.DeletedAt == null))
+                    : query.Where(story => !dbContext.TranslationVersions.Any(version =>
+                        version.TenantId == tenantId
+                        && version.StoryId == story.Id
+                        && version.DeletedAt == null));
             }
 
             var total = await query.CountAsync(cancellationToken);
@@ -423,6 +442,23 @@ internal static class AssetsEndpoints
         }
 
         var success = long.TryParse(raw, out var parsed) && parsed > 0;
+        value = parsed;
+        return success;
+    }
+
+    /// <summary>
+    /// Reads an optional boolean query parameter.
+    /// </summary>
+    private static bool TryReadOptionalBoolean(HttpContext httpContext, string name, out bool? value)
+    {
+        var raw = httpContext.Request.Query[name].ToString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            value = null;
+            return true;
+        }
+
+        var success = bool.TryParse(raw, out var parsed);
         value = parsed;
         return success;
     }

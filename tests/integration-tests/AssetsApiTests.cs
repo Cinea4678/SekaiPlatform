@@ -192,6 +192,57 @@ public sealed class AssetsApiTests : IDisposable
     }
 
     /// <summary>
+    /// Ensures story list translation filters are evaluated against the current tenant's active versions.
+    /// </summary>
+    [Fact]
+    public async Task StoriesEndpoint_CanFilterByCurrentTenantTranslationPresence()
+    {
+        var translated = await SeedStoryAsync("event_story", "translation_filter_yes", "有译文筛选剧情集", 1);
+        var untranslated = await SeedStoryAsync("event_story", "translation_filter_no", "无译文筛选剧情集", 1);
+        var otherTenantOnly = await SeedStoryAsync("event_story", "translation_filter_other", "其他租户译文剧情集", 1);
+        await SeedTenantTranslationsAsync(translated.StoryId, translated.SourceLineIds);
+        await SeedOtherTenantTranslationVersionAsync(otherTenantOnly.StoryId);
+        using var client = apiFactory.CreateClient();
+        var login = await LoginAsync(
+            client,
+            IntegrationTestDatabaseFixture.NormalUserQqId,
+            IntegrationTestDatabaseFixture.NormalUserPassword);
+
+        using var translatedResponse = await SendWithBearerAsync(
+            client,
+            "/api/stories?keyword=translation_filter_&has_translation=true&page=1&page_size=20",
+            login.Token);
+        Assert.Equal(HttpStatusCode.OK, translatedResponse.StatusCode);
+        var translatedItems = (await ReadJsonAsync(translatedResponse)).RootElement.GetProperty("items").EnumerateArray();
+        var translatedStoryIds = translatedItems.Select(item => item.GetProperty("id").GetInt64()).ToArray();
+        Assert.Contains(translated.StoryId, translatedStoryIds);
+        Assert.DoesNotContain(untranslated.StoryId, translatedStoryIds);
+        Assert.DoesNotContain(otherTenantOnly.StoryId, translatedStoryIds);
+
+        using var untranslatedResponse = await SendWithBearerAsync(
+            client,
+            "/api/stories?keyword=translation_filter_&has_translation=false&page=1&page_size=20",
+            login.Token);
+        Assert.Equal(HttpStatusCode.OK, untranslatedResponse.StatusCode);
+        var untranslatedItems = (await ReadJsonAsync(untranslatedResponse)).RootElement.GetProperty("items").EnumerateArray();
+        var untranslatedStoryIds = untranslatedItems.Select(item => item.GetProperty("id").GetInt64()).ToArray();
+        Assert.DoesNotContain(translated.StoryId, untranslatedStoryIds);
+        Assert.Contains(untranslated.StoryId, untranslatedStoryIds);
+        Assert.Contains(otherTenantOnly.StoryId, untranslatedStoryIds);
+
+        using var allResponse = await SendWithBearerAsync(
+            client,
+            "/api/stories?keyword=translation_filter_&page=1&page_size=20",
+            login.Token);
+        Assert.Equal(HttpStatusCode.OK, allResponse.StatusCode);
+        var allItems = (await ReadJsonAsync(allResponse)).RootElement.GetProperty("items").EnumerateArray();
+        var allStoryIds = allItems.Select(item => item.GetProperty("id").GetInt64()).ToArray();
+        Assert.Contains(translated.StoryId, allStoryIds);
+        Assert.Contains(untranslated.StoryId, allStoryIds);
+        Assert.Contains(otherTenantOnly.StoryId, allStoryIds);
+    }
+
+    /// <summary>
     /// Verifies validation and not-found cases return the platform error envelope.
     /// </summary>
     [Fact]
@@ -224,6 +275,13 @@ public sealed class AssetsApiTests : IDisposable
             login.Token);
         Assert.Equal(HttpStatusCode.BadRequest, invalidStoryGroup.StatusCode);
         await AssertErrorResponseAsync(invalidStoryGroup);
+
+        using var invalidTranslationFilter = await SendWithBearerAsync(
+            client,
+            "/api/stories?has_translation=abc",
+            login.Token);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTranslationFilter.StatusCode);
+        await AssertErrorResponseAsync(invalidTranslationFilter);
 
         using var overflowPage = await SendWithBearerAsync(
             client,
@@ -501,6 +559,36 @@ public sealed class AssetsApiTests : IDisposable
 
         await dbContext.SaveChangesAsync();
         return new SeededVersions(primary.Id, other.Id, otherTenantId);
+    }
+
+    /// <summary>
+    /// Seeds an active translation version in another tenant only.
+    /// </summary>
+    private async Task SeedOtherTenantTranslationVersionAsync(long storyId)
+    {
+        await using var dbContext = fixture.CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var otherTenantId = await dbContext.Tenants
+            .Where(tenant => tenant.Name == IntegrationTestDatabaseFixture.SecondTenantName)
+            .Select(tenant => tenant.Id)
+            .SingleAsync();
+        var multiTenantUserId = await dbContext.Users
+            .Where(user => user.QqId == IntegrationTestDatabaseFixture.MultiTenantUserQqId)
+            .Select(user => user.Id)
+            .SingleAsync();
+
+        dbContext.TranslationVersions.Add(new TranslationVersion
+        {
+            TenantId = otherTenantId,
+            StoryId = storyId,
+            VersionNo = 1,
+            Title = "其他租户译文",
+            CreatedBy = multiTenantUserId,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+
+        await dbContext.SaveChangesAsync();
     }
 
     /// <summary>

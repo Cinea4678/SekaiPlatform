@@ -77,6 +77,7 @@ export interface TranslationLine {
 export interface AssetListParams {
   storyType?: string
   storyGroupId?: number
+  hasTranslation?: boolean
   keyword?: string
   page?: number
   pageSize?: number
@@ -287,6 +288,10 @@ function toQueryString(params: AssetListParams) {
 
   if (params.storyGroupId) {
     query.set('story_group_id', String(params.storyGroupId))
+  }
+
+  if (params.hasTranslation !== undefined) {
+    query.set('has_translation', String(params.hasTranslation))
   }
 
   if (params.keyword) {
