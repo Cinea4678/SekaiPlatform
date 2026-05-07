@@ -392,7 +392,7 @@ internal static class ImportEndpoints
     }
 
     /// <summary>
-    /// Requests Search Service to refresh each imported translation version.
+    /// Requests Search Service to refresh each imported translation version and source priority metadata.
     /// </summary>
     private static async Task RefreshImportedVersionsAsync(
         IReadOnlyList<ImportedVersion> importedVersions,
@@ -412,6 +412,18 @@ internal static class ImportEndpoints
                 string.Join(",", importedVersions.Select(item => item.TranslationVersionId)),
                 refresh.StatusCode,
                 refresh.Body);
+        }
+
+        var sourceRefresh = await searchIndexRefreshClient.RefreshSourceStoriesAsync(
+            importedVersions.Select(item => item.StoryId).ToArray(),
+            cancellationToken);
+        if (!sourceRefresh.Success)
+        {
+            logger.LogError(
+                "Source index refresh failed after translation import. story_ids:{StoryIds} status:{StatusCode} body:{Body}",
+                string.Join(",", importedVersions.Select(item => item.StoryId).Distinct()),
+                sourceRefresh.StatusCode,
+                sourceRefresh.Body);
         }
     }
 

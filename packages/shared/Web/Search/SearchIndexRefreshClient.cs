@@ -17,6 +17,7 @@ public sealed class SearchIndexRefreshClient(
 {
     private const string RebuildPath = "/internal/search/index/rebuild";
     private const string StoryRefreshScope = "all";
+    private const string SourceRefreshScope = "source";
     private const string TranslationRefreshScope = "translation";
     private const int MaxLoggedErrorBodyLength = 512;
 
@@ -40,6 +41,31 @@ public sealed class SearchIndexRefreshClient(
             distinctStoryIds,
             Math.Max(1, options.StoryBatchSize),
             ids => new StoryIndexRefreshRequest(StoryRefreshScope, ids),
+            SekaiInternalAuthDefaults.SearchIndexRebuildScope,
+            tenantId: null,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Refreshes only source index documents for the specified stories.
+    /// </summary>
+    /// <param name="storyIds">Story identifiers whose source-line search priority metadata changed.</param>
+    /// <param name="cancellationToken">Token used to cancel the refresh request.</param>
+    /// <returns>The refresh request result, including error response details when available.</returns>
+    public async Task<SearchIndexRefreshResult> RefreshSourceStoriesAsync(
+        IReadOnlyCollection<long> storyIds,
+        CancellationToken cancellationToken)
+    {
+        var distinctStoryIds = storyIds.Distinct().ToArray();
+        if (distinctStoryIds.Length == 0)
+        {
+            return SearchIndexRefreshResult.Succeeded();
+        }
+
+        return await SendRefreshBatchesAsync(
+            distinctStoryIds,
+            Math.Max(1, options.StoryBatchSize),
+            ids => new StoryIndexRefreshRequest(SourceRefreshScope, ids),
             SekaiInternalAuthDefaults.SearchIndexRebuildScope,
             tenantId: null,
             cancellationToken);
